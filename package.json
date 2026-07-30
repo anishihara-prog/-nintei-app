@@ -1,0 +1,37 @@
+{
+  "name": "nintei-chousa-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "cli": "node --loader ts-node/esm cli/index.ts",
+    "cli:build": "tsc cli/index.ts cli/assessmentEngine.ts cli/assessmentItems.ts cli/sessionManager.ts cli/engine/shared.ts cli/engine/reviewEngine.ts cli/engine/chatEngine.ts --outDir dist/cli --module esnext --target esnext --declaration",
+    "server": "node server/index.js",
+    "dev:all": "concurrently -n vite,api -c blue,green \"npm:dev\" \"npm:server\"",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "lucide-react": "^0.469.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}
