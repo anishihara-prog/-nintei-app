@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FileText, Copy, Check, RotateCcw, ClipboardCheck,
   MessageSquare, Filter, Heart, Info, Sparkles, AlertTriangle, Loader2,
-  Send, CheckCircle2
+  Send, CheckCircle2, Bot, User
 } from 'lucide-react';
 import {
   runJudge, buildJudgeRequestItems, identifyGapItems, composeIntakeWithTranscript,
@@ -1207,7 +1207,7 @@ const ASSESSMENT_ITEMS = [
     description: "過去14日間に痛みに対する医療的な管理が行われたか評価します。",
     options: ["ない", "ある"],
     kitaGuide: "がん末期のペインコントロールに相当する程度の疼痛看護が対象。対象となる方法は湿布（温・冷問わず）・外用薬塗布・鎮痛薬の点滴・硬膜外持続注入・座薬・貼付型経皮吸収剤・注射に限られ、さする・マッサージ・声かけのみは含まない。",
-    manualCaution: "・「痛み止めを使っている」との申告があっても、対象となる方法によるものかを具体的に確認する。\n・特記事項には使用薬剤・投与方法・実施頻度を記載する。",
+    manualCaution: "・「疼痛」は、けがの痛みや神経の痛みに限らず、心理的な痛み、身体的な原因が見つからない痛み、ストレス等からくる痛みも含む。\n・「痛み止めを使っている」との申告があっても、対象となる方法によるものかを具体的に確認する。\n・特記事項には使用薬剤・投与方法・実施頻度を記載する。",
     keywordRules: [
       { key: "モルヒネ", text: "がん性疼痛に対し持続皮下注射（モルヒネ等）による疼痛管理が行われており、" },
       { key: "疼痛", text: "強い疼痛コントロールのため定期的な医療的管理が必要であり、" }
@@ -1524,6 +1524,56 @@ const renderWithBold = (text: string) => {
   );
 };
 
+// AI確認チャット用の吹き出し1つ分の表示
+const ChatBubble = ({
+  role,
+  tone,
+  typing,
+  children,
+}: {
+  role: "ai" | "user";
+  tone?: "success" | "warning";
+  typing?: boolean;
+  children: React.ReactNode;
+}) => {
+  const isAi = role === "ai";
+  const bubbleColor = tone === "success"
+    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+    : tone === "warning"
+    ? "bg-amber-50 border-amber-200 text-amber-800"
+    : isAi
+    ? "bg-sky-50 border-sky-200 text-slate-800"
+    : "bg-indigo-600 border-indigo-600 text-white";
+  return (
+    <div className={`flex items-start gap-2 ${isAi ? "justify-start" : "justify-end"}`}>
+      {isAi && (
+        <span className="shrink-0 w-6 h-6 rounded-full bg-sky-100 border border-sky-300 flex items-center justify-center mt-0.5">
+          <Bot className="w-3.5 h-3.5 text-sky-600" />
+        </span>
+      )}
+      <div
+        className={`max-w-[85%] rounded-2xl border px-3 py-2 text-xs font-medium leading-relaxed whitespace-pre-wrap ${bubbleColor} ${
+          isAi ? "rounded-tl-sm" : "rounded-tr-sm"
+        }`}
+      >
+        {typing ? (
+          <span className="flex items-center gap-1.5">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            {children}
+          </span>
+        ) : (
+          children
+        )}
+      </div>
+      {!isAi && (
+        <span className="shrink-0 w-6 h-6 rounded-full bg-indigo-100 border border-indigo-300 flex items-center justify-center mt-0.5">
+          <User className="w-3.5 h-3.5 text-indigo-600" />
+        </span>
+      )}
+    </div>
+  );
+};
+
 // -------------------------------------------------------
 // メインコンポーネント
 // -------------------------------------------------------
@@ -1632,6 +1682,12 @@ export default function App() {
   );
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [questionsError, setQuestionsError] = useState("");
+
+  const chatLogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = chatLogRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [transcript, pendingQuestions, chatStatus, judgeLoading, questionsLoading]);
 
   // ==========================================
   // ローカルストレージへの自動保存効果
@@ -1874,7 +1930,7 @@ export default function App() {
 
   const handleSuggestGroups = async () => {
     const targets: GroupSuggestionItem[] = ASSESSMENT_ITEMS
-      .filter(item => isRequired(selections[item.id]) && !groupedItemIds.has(item.id))
+      .filter(item => item.category !== "5.特別な医療" && isRequired(selections[item.id]) && !groupedItemIds.has(item.id))
       .map(item => {
         const status = selections[item.id];
         return {
@@ -2360,87 +2416,89 @@ export default function App() {
               )}
             </div>
 
-            {judgeLoading && (
-              <p className="text-xs text-slate-500 flex items-center gap-1.5">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" /> AIが80項目を判定しています…
-              </p>
-            )}
+            <div ref={chatLogRef} className="flex flex-col gap-3 max-h-[30rem] overflow-y-auto pr-1 mb-3">
+              {transcript.map((entry, idx) => (
+                <React.Fragment key={idx}>
+                  <ChatBubble role="ai">{entry.question}</ChatBubble>
+                  <ChatBubble role="user">{entry.answer}</ChatBubble>
+                </React.Fragment>
+              ))}
 
-            {!judgeLoading && questionsLoading && (
-              <p className="text-xs text-slate-500 flex items-center gap-1.5">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" /> 確信が持てない項目について、AIが確認質問を考えています…
-              </p>
-            )}
+              {judgeLoading && (
+                <ChatBubble role="ai" typing>
+                  {transcript.length === 0 ? "聞き取った状況を読んで、80項目を判定しています…" : "回答をもとに再判定しています…"}
+                </ChatBubble>
+              )}
+
+              {!judgeLoading && questionsLoading && (
+                <ChatBubble role="ai" typing>確信が持てない項目について、確認事項を考えています…</ChatBubble>
+              )}
+
+              {!judgeLoading && !questionsLoading && chatStatus === "asking" && (
+                <>
+                  <ChatBubble role="ai">
+                    本文からの根拠が乏しい点について、まとめて確認させてください。回答できるものだけで構いません。
+                  </ChatBubble>
+                  {pendingQuestions.map((q, idx) => (
+                    <div key={idx} className="flex flex-col gap-1.5">
+                      <ChatBubble role="ai">{q.question}</ChatBubble>
+                      <div className="flex justify-end">
+                        <textarea
+                          value={questionAnswers[idx] || ""}
+                          onChange={(e) => setQuestionAnswers(prev => ({ ...prev, [idx]: e.target.value }))}
+                          placeholder="ここに回答を入力…（わからなければ空欄のままで構いません）"
+                          className="w-[85%] h-14 p-2 border border-indigo-200 rounded-2xl rounded-tr-sm text-xs bg-indigo-50 focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none resize-y"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {!judgeLoading && !questionsLoading && chatStatus === "no_gaps" && (
+                <ChatBubble role="ai" tone="success">
+                  <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" />確信が持てない項目はありませんでした。判定は確定です。</span>
+                </ChatBubble>
+              )}
+
+              {!judgeLoading && !questionsLoading && chatStatus === "no_questions" && (
+                <ChatBubble role="ai" tone="success">
+                  <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" />追加の確認事項はありませんでした。判定は確定です。</span>
+                </ChatBubble>
+              )}
+
+              {!judgeLoading && !questionsLoading && chatStatus === "round_cap" && (
+                <ChatBubble role="ai" tone="warning">
+                  <span className="flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" />確認の上限（{MAX_CHAT_ROUNDS}ラウンド）に達したため、現在の判定を確定として扱います。残る不確実な項目は下の一覧で手動確認してください。</span>
+                </ChatBubble>
+              )}
+
+              {!judgeLoading && !questionsLoading && chatStatus === "finished_by_user" && (
+                <ChatBubble role="ai" tone="success">
+                  <span className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" />確認を終了し、現在の判定を確定しました。</span>
+                </ChatBubble>
+              )}
+            </div>
 
             {!judgeLoading && !questionsLoading && chatStatus === "asking" && (
-              <div className="flex flex-col gap-3">
-                <p className="text-[11px] text-slate-500">
-                  以下の項目は本文からの根拠が乏しいため、AIが本人・家族への追加確認事項を提案しています。回答できるものだけ入力してください。
-                </p>
-                {pendingQuestions.map((q, idx) => (
-                  <div key={idx} className="border border-slate-200 rounded-lg p-3 bg-slate-50">
-                    <p className="text-xs font-bold text-slate-800 mb-1.5">
-                      Q{idx + 1}. {q.question}
-                      <span className="ml-2 text-[10px] font-normal text-slate-400">
-                        （関連項目: {q.relatedItemIds.join("、")}）
-                      </span>
-                    </p>
-                    <textarea
-                      value={questionAnswers[idx] || ""}
-                      onChange={(e) => setQuestionAnswers(prev => ({ ...prev, [idx]: e.target.value }))}
-                      placeholder="回答（わからない場合は空欄のままでも構いません）"
-                      className="w-full h-16 p-2 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-sky-400 focus:border-sky-400 outline-none resize-y"
-                    />
-                  </div>
-                ))}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleSubmitAnswers}
-                    className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold px-4 py-2 rounded-lg text-xs transition-all"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    回答を送って再判定する
-                  </button>
-                  <button
-                    onClick={handleFinishChat}
-                    className="text-xs font-bold text-slate-500 hover:text-slate-700 underline"
-                  >
-                    ここで判定を確定する
-                  </button>
-                </div>
-                {questionsError && <span className="text-[11px] text-rose-600 font-bold">{questionsError}</span>}
+              <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
+                <button
+                  onClick={handleSubmitAnswers}
+                  className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold px-4 py-2 rounded-lg text-xs transition-all"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  回答を送って再判定する
+                </button>
+                <button
+                  onClick={handleFinishChat}
+                  className="text-xs font-bold text-slate-500 hover:text-slate-700 underline"
+                >
+                  ここで判定を確定する
+                </button>
               </div>
             )}
 
-            {!judgeLoading && !questionsLoading && chatStatus === "no_gaps" && (
-              <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                確信が持てない項目はありませんでした。判定は確定です。
-              </p>
-            )}
-
-            {!judgeLoading && !questionsLoading && chatStatus === "no_questions" && (
-              <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                AIから追加の確認事項はありませんでした。判定は確定です。
-              </p>
-            )}
-
-            {!judgeLoading && !questionsLoading && chatStatus === "round_cap" && (
-              <p className="text-[11px] text-amber-600 font-bold flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                確認の上限（{MAX_CHAT_ROUNDS}ラウンド）に達したため、現在の判定を確定として扱います。残る不確実な項目は下の一覧で手動確認してください。
-              </p>
-            )}
-
-            {!judgeLoading && !questionsLoading && chatStatus === "finished_by_user" && (
-              <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                確認を終了し、現在の判定を確定しました。
-              </p>
-            )}
-
-            {questionsError && chatStatus !== "asking" && (
+            {questionsError && (
               <span className="text-[11px] text-rose-600 font-bold block mt-2">{questionsError}</span>
             )}
           </div>
@@ -2686,13 +2744,6 @@ export default function App() {
                             <span className="flex items-center gap-1 bg-rose-100 text-rose-700 text-[10px] font-black px-2 py-0.5 rounded border border-rose-300">
                               <AlertTriangle className="w-3 h-3" />
                               AI生成失敗・要確認
-                            </span>
-                          );
-                        }
-                        if (meta.source === "default") {
-                          return (
-                            <span className="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-0.5 rounded border border-amber-300">
-                              本文に記載なし・初期値
                             </span>
                           );
                         }
