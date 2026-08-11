@@ -121,7 +121,7 @@ export async function runJudge(
 
 export type TranscriptEntry = { question: string; answer: string };
 
-export type FollowUpQuestion = { question: string; relatedItemIds: string[] };
+export type FollowUpQuestion = { question: string; relatedItemIds: string[]; options: string[] };
 
 export type GapItem = JudgeRequestItem & {
   currentOption: string;
@@ -190,6 +190,9 @@ export async function runGenerateFollowUpQuestions(
     .map((q) => ({
       question: q.question.trim(),
       relatedItemIds: Array.isArray(q.relatedItemIds) ? q.relatedItemIds.filter((id) => validIds.has(id)) : [],
+      options: Array.isArray(q.options)
+        ? q.options.filter((opt): opt is string => typeof opt === "string" && opt.trim().length > 0)
+        : [],
     }))
     .filter((q) => q.relatedItemIds.length > 0);
 }

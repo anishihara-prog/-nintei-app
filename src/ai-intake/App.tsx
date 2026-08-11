@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   FileText, Copy, Check, RotateCcw, ClipboardCheck,
   MessageSquare, Filter, Heart, Info, Sparkles, AlertTriangle, Loader2,
-  Send, CheckCircle2, Bot, User
+  Send, CheckCircle2, Bot, User, Download
 } from 'lucide-react';
+import { exportAssessmentToExcel } from '../exportExcel';
 import {
   runJudge, buildJudgeRequestItems, identifyGapItems, composeIntakeWithTranscript,
   runGenerateFollowUpQuestions, runSuggestGroups, runSuggestDraftNote,
@@ -1265,6 +1266,10 @@ const ASSESSMENT_ITEMS = [
   },
 ];
 
+// AI一括判定の対象カテゴリ（まずは1〜3のみ対応。4・5は今後拡張予定）
+const AI_JUDGE_CATEGORIES = ["1.移動や動作等", "2.日常生活等", "3.意思疎通等"];
+const AI_JUDGE_ITEMS = ASSESSMENT_ITEMS.filter(item => AI_JUDGE_CATEGORIES.includes(item.category));
+
 type AiReviewComment = {
   needsAttention: boolean;
   comment: string;
@@ -1587,6 +1592,8 @@ const STORAGE_KEYS = {
   judgeMeta: "ai_intake_meta",
   transcript: "ai_intake_transcript",
   disabilityGrade: "ai_intake_disability_grade",
+  surveyDate: "ai_intake_survey_date",
+  subjectName: "ai_intake_subject_name",
   aiReviewComments: "ai_intake_ai_review_comments",
   draftNotes: "ai_intake_draft_notes",
   chatRound: "ai_intake_chat_round",
@@ -1633,6 +1640,12 @@ export default function App() {
   const [disabilityGrade, setDisabilityGrade] = useState(() =>
     loadFromStorage(STORAGE_KEYS.disabilityGrade, "")
   );
+  const [surveyDate, setSurveyDate] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.surveyDate, "")
+  );
+  const [subjectName, setSubjectName] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.subjectName, "")
+  );
   const [aiReviewLoading, setAiReviewLoading] = useState(false);
   const [aiReviewError, setAiReviewError] = useState("");
   const [aiReviewComments, setAiReviewComments] = useState<Record<string, AiReviewComment>>(() =>
@@ -1640,6 +1653,7 @@ export default function App() {
   );
 
   const [selectedForGroup, setSelectedForGroup] = useState<string[]>([]);
+  const [groupSelectWarning, setGroupSelectWarning] = useState("");
   const [groups, setGroups] = useState<NoteGroup[]>(() =>
     loadFromStorage(STORAGE_KEYS.groups, [])
   );
@@ -1719,6 +1733,14 @@ export default function App() {
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.disabilityGrade, disabilityGrade);
   }, [disabilityGrade]);
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.surveyDate, surveyDate);
+  }, [surveyDate]);
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.subjectName, subjectName);
+  }, [subjectName]);
 
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.aiReviewComments, aiReviewComments);
@@ -1813,7 +1835,7 @@ export default function App() {
     setQuestionsError("");
     setChatStatus("idle");
     try {
-      const requestItems = buildJudgeRequestItems(ASSESSMENT_ITEMS, OPTION_CRITERIA, INITIAL_SELECTIONS);
+      const requestItems = buildJudgeRequestItems(AI_JUDGE_ITEMS, OPTION_CRITERIA, INITIAL_SELECTIONS);
       const result = await runJudge(intakeText, requestItems);
       applyJudgeResult(result);
       setHasJudged(true);
@@ -1836,7 +1858,7 @@ export default function App() {
     setJudgeLoading(true);
     setQuestionsError("");
     try {
-      const requestItems = buildJudgeRequestItems(ASSESSMENT_ITEMS, OPTION_CRITERIA, INITIAL_SELECTIONS);
+      const requestItems = buildJudgeRequestItems(AI_JUDGE_ITEMS, OPTION_CRITERIA, INITIAL_SELECTIONS);
       const composedText = composeIntakeWithTranscript(intakeText, nextTranscript);
       const result = await runJudge(composedText, requestItems);
       applyJudgeResult(result);
@@ -1889,11 +1911,26 @@ export default function App() {
   const visibleGroupSuggestions = groupSuggestions.filter(g =>
     g.itemIds.every(id => !groupedItemIds.has(id))
   );
+  // 判定（選択された選択肢）が異なる項目が混在してしまっている既存グループ（過去の不具合や、
+  // グループ化後の手動判定変更により発生しうる）を検出する。
+  const inconsistentGroups = groups.filter(
+    g => new Set(g.itemIds.map(id => selections[id])).size > 1
+  );
 
   const toggleGroupSelect = (itemId: string) => {
-    setSelectedForGroup(prev =>
-      prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]
-    );
+    setSelectedForGroup(prev => {
+      if (prev.includes(itemId)) {
+        setGroupSelectWarning("");
+        return prev.filter(id => id !== itemId);
+      }
+      const firstOption = prev.length > 0 ? selections[prev[0]] : undefined;
+      if (firstOption !== undefined && selections[itemId] !== firstOption) {
+        setGroupSelectWarning("判定が異なる項目はまとめられません。同じ判定の項目同士のみ選択してください。");
+        return prev;
+      }
+      setGroupSelectWarning("");
+      return [...prev, itemId];
+    });
   };
 
   const createGroupFromIds = (itemIds: string[]) => {
@@ -1918,6 +1955,7 @@ export default function App() {
     if (selectedForGroup.length < 2) return;
     createGroupFromIds(selectedForGroup);
     setSelectedForGroup([]);
+    setGroupSelectWarning("");
   };
 
   const handleUngroup = (groupId: string) => {
@@ -2197,6 +2235,25 @@ export default function App() {
     document.body.removeChild(ta);
   };
 
+  const [exportingExcel, setExportingExcel] = useState(false);
+
+  const handleExportExcel = async () => {
+    setExportingExcel(true);
+    try {
+      await exportAssessmentToExcel({
+        items: ASSESSMENT_ITEMS,
+        selections,
+        editedNotes,
+        groups,
+        surveyDate,
+        subjectName,
+        disabilityGrade,
+      });
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   const handleResetAll = () => {
     setSelections({ ...INITIAL_SELECTIONS });
     setEditedNotes({});
@@ -2368,17 +2425,17 @@ export default function App() {
             <span>【特記1行の書き方】：判定が「2以上」「ある」項目のみ、改行なしの1文形式で「身体理由」「支障」「介護内容」を連結して表示します。</span>
           </div>
           <span className="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-1 rounded border border-slate-200 shrink-0 font-mono">
-            特記シートセル対応：最大幅約60〜70文字
+            特記シートセル対応：A4縦・フォント10.5pt換算で1行約45文字が目安（内容が多い場合は超過可）
           </span>
         </div>
 
         <div className="bg-white rounded-xl p-5 border-2 border-indigo-300 shadow-sm mb-6">
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-indigo-600" />
-            <h2 className="text-sm font-black text-slate-800">聞き取った状況からAIが80項目を一括判定</h2>
+            <h2 className="text-sm font-black text-slate-800">聞き取った状況からAIが1から3まで一括判定</h2>
           </div>
           <p className="text-[11px] text-slate-500 mb-3">
-            面談メモ等をそのまま貼り付けてください。AIは各項目の「判定（選択肢）」のみを推定します。特記事項の文章は今まで通り、下の項目ごとの画面で入力してください。
+            面談メモ等をそのまま貼り付けてください。AIは「1.移動や動作等」「2.日常生活等」「3.意思疎通等」の各項目の「判定（選択肢）」のみを推定します（4・5は対象外、今後拡張予定）。特記事項の文章は今まで通り、下の項目ごとの画面で入力してください。
           </p>
           <textarea
             value={intakeText}
@@ -2393,7 +2450,7 @@ export default function App() {
               className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white font-bold px-4 py-2 rounded-lg text-xs transition-all"
             >
               {judgeLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              {judgeLoading ? "AIが判定中…" : hasJudged ? "この内容で再判定する" : "AIで80項目を一括判定"}
+              {judgeLoading ? "AIが判定中…" : hasJudged ? "この内容で再判定する" : "AIで1から3まで一括判定"}
             </button>
             {judgeError && <span className="text-[11px] text-rose-600 font-bold">{judgeError}</span>}
             {hasJudged && !judgeError && (
@@ -2426,7 +2483,7 @@ export default function App() {
 
               {judgeLoading && (
                 <ChatBubble role="ai" typing>
-                  {transcript.length === 0 ? "聞き取った状況を読んで、80項目を判定しています…" : "回答をもとに再判定しています…"}
+                  {transcript.length === 0 ? "聞き取った状況を読んで、1から3までの項目を判定しています…" : "回答をもとに再判定しています…"}
                 </ChatBubble>
               )}
 
@@ -2439,19 +2496,45 @@ export default function App() {
                   <ChatBubble role="ai">
                     本文からの根拠が乏しい点について、まとめて確認させてください。回答できるものだけで構いません。
                   </ChatBubble>
-                  {pendingQuestions.map((q, idx) => (
-                    <div key={idx} className="flex flex-col gap-1.5">
-                      <ChatBubble role="ai">{q.question}</ChatBubble>
-                      <div className="flex justify-end">
-                        <textarea
-                          value={questionAnswers[idx] || ""}
-                          onChange={(e) => setQuestionAnswers(prev => ({ ...prev, [idx]: e.target.value }))}
-                          placeholder="ここに回答を入力…（わからなければ空欄のままで構いません）"
-                          className="w-[85%] h-14 p-2 border border-indigo-200 rounded-2xl rounded-tr-sm text-xs bg-indigo-50 focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none resize-y"
-                        />
+                  {pendingQuestions.map((q, idx) => {
+                    const answer = questionAnswers[idx] || "";
+                    const options = q.options || [];
+                    return (
+                      <div key={idx} className="flex flex-col gap-1.5">
+                        <ChatBubble role="ai">{q.question}</ChatBubble>
+                        <div className="flex justify-end">
+                          {options.length > 0 ? (
+                            <div className="w-[85%] flex flex-wrap justify-end gap-1.5">
+                              {options.map(opt => {
+                                const selected = answer === opt;
+                                return (
+                                  <button
+                                    key={opt}
+                                    type="button"
+                                    onClick={() => setQuestionAnswers(prev => ({ ...prev, [idx]: selected ? "" : opt }))}
+                                    className={`px-3 py-1.5 rounded-full border text-xs font-bold transition-all ${
+                                      selected
+                                        ? "bg-indigo-600 border-indigo-600 text-white"
+                                        : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:border-indigo-400"
+                                    }`}
+                                  >
+                                    {opt}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <textarea
+                              value={answer}
+                              onChange={(e) => setQuestionAnswers(prev => ({ ...prev, [idx]: e.target.value }))}
+                              placeholder="ここに回答を入力…（わからなければ空欄のままで構いません）"
+                              className="w-[85%] h-14 p-2 border border-indigo-200 rounded-2xl rounded-tr-sm text-xs bg-indigo-50 focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none resize-y"
+                            />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </>
               )}
 
@@ -2521,6 +2604,31 @@ export default function App() {
           </div>
 
           <div className="p-3 bg-amber-50 rounded-lg border border-amber-300">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+              <div>
+                <label className="text-[11px] font-black text-amber-900 mb-1 flex items-center gap-1">
+                  調査日（Excel出力用・任意）
+                </label>
+                <input
+                  type="date"
+                  value={surveyDate}
+                  onChange={e => setSurveyDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-white rounded border border-amber-300 focus:border-amber-500 focus:outline-none text-xs font-bold"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-black text-amber-900 mb-1 flex items-center gap-1">
+                  対象者氏名（Excel出力用・任意）
+                </label>
+                <input
+                  type="text"
+                  value={subjectName}
+                  onChange={e => setSubjectName(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-white rounded border border-amber-300 focus:border-amber-500 focus:outline-none text-xs font-bold"
+                  placeholder="例：山田 太郎"
+                />
+              </div>
+            </div>
             <label className="text-[11px] font-black text-amber-900 mb-1 flex items-center gap-1">
               <MessageSquare className="w-3.5 h-3.5" />
               障害等級（概況調査票より・任意）
@@ -2580,6 +2688,29 @@ export default function App() {
           ))}
         </div>
 
+        {/* 判定が食い違うグループの警告 */}
+        {inconsistentGroups.length > 0 && (
+          <div className="bg-rose-50 border border-rose-300 rounded-xl p-3 flex items-center justify-between gap-3 text-xs mb-4">
+            <span className="font-bold text-rose-700 flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              判定が異なる項目が混在しているグループが{inconsistentGroups.length}件あります（
+              {inconsistentGroups
+                .map(g => g.itemIds.map(id => ASSESSMENT_ITEMS.find(i => i.id === id)?.name || id).join("＋"))
+                .join("、")}
+              ）。同じ判定の項目同士でまとめ直してください。
+            </span>
+            <button
+              onClick={() => {
+                const badIds = new Set(inconsistentGroups.map(g => g.id));
+                setGroups(prev => prev.filter(g => !badIds.has(g.id)));
+              }}
+              className="shrink-0 bg-rose-600 hover:bg-rose-700 text-white font-black px-3 py-1.5 rounded-lg text-[11px]"
+            >
+              このグループをすべて解除する
+            </button>
+          </div>
+        )}
+
         {/* AIによるまとめ方提案 */}
         <div className="bg-white p-3 rounded-xl border border-slate-300/80 shadow-sm flex flex-col gap-2 mb-4">
           <div className="flex items-center justify-between gap-2">
@@ -2638,7 +2769,7 @@ export default function App() {
         {selectedForGroup.length > 0 && (
           <div className="bg-indigo-50 border border-indigo-300 rounded-xl p-3 flex items-center justify-between gap-3 text-xs mb-4">
             <span className="font-black text-indigo-800">
-              {selectedForGroup.length}件を選択中（複数選ぶとまとめて1つの特記文にできます）
+              {selectedForGroup.length}件を選択中（複数選ぶとまとめて1つの特記文にできます。同じ判定の項目同士のみ選択できます）
             </span>
             <div className="flex gap-2">
               <button
@@ -2649,13 +2780,16 @@ export default function App() {
                 まとめて特記文にする
               </button>
               <button
-                onClick={() => setSelectedForGroup([])}
+                onClick={() => { setSelectedForGroup([]); setGroupSelectWarning(""); }}
                 className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-1.5 rounded-lg text-[11px] border border-indigo-300"
               >
                 選択解除
               </button>
             </div>
           </div>
+        )}
+        {groupSelectWarning && (
+          <p className="text-[11px] text-rose-600 font-bold mb-4">{groupSelectWarning}</p>
         )}
 
         {/* 項目と特記事項の行連動グリッド（左＝特記、右＝調査票項目） */}
@@ -2899,10 +3033,10 @@ export default function App() {
           </div>
         )}
 
-        <div className="mt-5 pt-4 border-t border-slate-200 flex flex-col gap-2">
+        <div className="mt-5 pt-4 border-t border-slate-200 flex flex-col sm:flex-row gap-2">
           <button
             onClick={handleCopyClipboard}
-            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-3 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 text-xs transition-all"
+            className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-black py-3 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 text-xs transition-all"
           >
             {copiedStatus ? (
               <>
@@ -2916,7 +3050,18 @@ export default function App() {
               </>
             )}
           </button>
+          <button
+            onClick={handleExportExcel}
+            disabled={exportingExcel}
+            className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-3 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 text-xs transition-all"
+          >
+            <Download className="w-4 h-4" />
+            {exportingExcel ? "Excelを作成中…" : "認定調査票(特記事項)をExcelで出力"}
+          </button>
         </div>
+        <p className="text-[10px] text-slate-400 mt-1.5">
+          ※様式は元のExcelファイルを再現したものではなく、アップロードされたPDFのレイアウトを参考に本アプリで作成したものです。実際の提出様式と体裁が異なる場合があります。
+        </p>
       </main>
     </div>
   );

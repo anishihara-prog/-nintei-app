@@ -306,6 +306,7 @@ app.post("/api/judge", async (req, res) => {
 });
 
 const MAX_FOLLOWUP_QUESTIONS = 5;
+const MAX_OPTIONS_PER_QUESTION = 5;
 
 function buildFollowUpQuestionsPrompt(transcriptText, gapItems) {
   const itemLines = gapItems
@@ -341,13 +342,16 @@ ${itemLines}
 - 本文に書かれていないことを断定せず、あくまで確認のための質問にする。
 - 他の記述から十分推測できる項目や重要度の低い項目は、無理に質問を作らなくてよい。
 - 最大${MAX_FOLLOWUP_QUESTIONS}問まで（できるだけ少ない問数にまとめる）。確認すべきことがなければ空配列を返してよい。
+- 相談員が本人・家族に読み上げてその場でタップ選択できるよう、なるべく選択肢（2〜5個、"options"）を用意すること。選択肢は「選択肢と判断基準」に沿った、回答が明確に分かれる短い言葉にする（例：「支えなしでできる」「見守りがあればできる」「介助が必要」「わからない」）。
+- 数値・頻度・具体的なエピソードなど、選択肢では答えを表現しきれない質問に限り、"options"を空配列にして自由記述にしてよい（多用しない）。
 
 出力は次のJSON形式の配列のみとしてください。前後に説明文やコードブロック記号（\`\`\`）は付けないでください。
 
 [
   {
     "question": "相談員が本人・家族に確認するための質問文",
-    "relatedItemIds": ["関連する項目のid（一覧に存在するものを厳密に一致させる）"]
+    "relatedItemIds": ["関連する項目のid（一覧に存在するものを厳密に一致させる）"],
+    "options": ["選択肢1", "選択肢2", "…（自由記述にする場合は空配列 []）"]
   }
 ]`;
 }
@@ -407,6 +411,12 @@ app.post("/api/judge/questions", async (req, res) => {
         relatedItemIds: Array.isArray(q.relatedItemIds)
           ? q.relatedItemIds.filter((id) => typeof id === "string" && validIds.has(id))
           : [],
+        options: Array.isArray(q.options)
+          ? q.options
+              .filter((opt) => typeof opt === "string" && opt.trim())
+              .map((opt) => opt.trim())
+              .slice(0, MAX_OPTIONS_PER_QUESTION)
+          : [],
       }))
       .filter((q) => q.relatedItemIds.length > 0)
       .slice(0, MAX_FOLLOWUP_QUESTIONS);
@@ -444,6 +454,7 @@ ${itemLines}
 ${COMMON_JUDGMENT_NOTES}
 
 次の観点で、内容が重複・類似しやすい項目同士をグループとして提案してください。
+- **同じ「選択された判定」（選択肢の文字列）の項目同士のみをグループ化対象とする。判定が異なる項目を1つのグループに含めてはならない。** 支援の原因が似ていても、判定の水準が違えば特記文で描写すべき支援の程度が異なるため、まとめて1文にすると実態と食い違う記述になる。
 - 支援の原因（同じ身体機能低下・同じ疾患・同じ行動障害等）が共通しており、特記文を別々に書くと同じ内容を繰り返すことになりそうな項目をまとめる
 - 相談員がすでに特記文を入力している項目は、その文面が実際に重複・類似しているかを重視する（文面が実際には異なる内容であれば、群やカテゴリが同じでも無理に一緒にしない）
 - まだ特記文が入力されていない項目は、項目名・判定基準・選択された判定の内容から重複が見込まれるかどうかで判断する
@@ -504,19 +515,30 @@ app.post("/api/judge/group-suggestions", async (req, res) => {
     }
 
     const validIds = new Set(items.map((it) => it.itemId));
+    const optionById = new Map(items.map((it) => [it.itemId, it.option]));
+
+    // 判定（選択された選択肢）が異なる項目は、AIの提案に含まれていても同じグループにしない。
+    // 判定ごとに分割し、2件以上残るまとまりだけを提案として残す。
     const suggestions = (Array.isArray(parsed) ? parsed : [])
-      .map((g) => {
-        if (!g || !Array.isArray(g.itemIds)) return null;
+      .flatMap((g) => {
+        if (!g || !Array.isArray(g.itemIds)) return [];
         const uniqueValidIds = [...new Set(
           g.itemIds.filter((id) => typeof id === "string" && validIds.has(id))
         )];
-        if (uniqueValidIds.length < 2) return null;
-        return {
-          itemIds: uniqueValidIds.slice(0, MAX_GROUP_SIZE),
-          reason: typeof g.reason === "string" ? g.reason.trim() : "",
-        };
+        if (uniqueValidIds.length < 2) return [];
+
+        const byOption = new Map();
+        for (const id of uniqueValidIds) {
+          const option = optionById.get(id);
+          if (!byOption.has(option)) byOption.set(option, []);
+          byOption.get(option).push(id);
+        }
+
+        const reason = typeof g.reason === "string" ? g.reason.trim() : "";
+        return [...byOption.values()]
+          .filter((ids) => ids.length >= 2)
+          .map((ids) => ({ itemIds: ids.slice(0, MAX_GROUP_SIZE), reason }));
       })
-      .filter((g) => g !== null)
       .slice(0, MAX_GROUP_SUGGESTIONS);
 
     res.json({ suggestions });
@@ -559,6 +581,22 @@ ${COMMON_JUDGMENT_NOTES}
 ${combineNote}
 選択された判定の水準に見合う、具体的な身体的理由・生活上の支障・介護（支援）の内容を含めてください。
 **聞き取った状況に書かれていない事実（診断名・原因・具体的な数値等）を勝手に作り出さないこと。** 聞き取った状況だけでは根拠が薄い場合は、断定を避け「〜と考えられる」等の表現に留めるか、その旨がわかる書き方にしてください。
+
+【聞き取り内容の読み方の注意】
+・「聞き取った対象者の状況」に「Q:」「A:」形式の追加の聞き取りが含まれる場合、"Q:"は相談員が投げかけた質問文であり、事実ではない。質問文の中に「部分的な介助」「全面的な介助」等の選択肢の例示が含まれていても、それは単なる例示であり、本人の状態を表す事実として扱わないこと。事実として使えるのは"A:"（回答）に書かれている内容のみ。
+・対象項目について"A:"に直接の回答がない場合、その項目に関する具体的な状態（できる／できない、程度、原因等）を勝手に補って書かないこと。
+
+【選択された判定の水準との整合性】
+・特記文で描写する支援の程度は、必ず「選択された判定:」に書かれた水準と一致させること。それより重い状態（例：見守り等が選択されているのに「自力では不可能」「全介助」等と書く）や、それより軽い状態を描写してはならない。
+・対象項目について聞き取った状況に直接の事実がない場合は、事実を創作せず、判定基準・評価の着眼点の文言をもとに、選択された水準の一般的な支援内容にとどまる範囲で簡潔に書くこと。
+
+【文字数の厳守】
+特記事項欄はA4縦・フォント10.5ptで1行に収まる全角45文字程度が上限。必ずこの文字数に収まるよう、要点（身体理由・支障・介護内容）だけを短く言い切ること。
+・「〜という状況が見られ」「〜と考えられることから」のような前置き・接続の言い回しは削り、体言止めや簡潔な言い方でつなげる。
+・同じ内容を2度言わない。判定根拠として必須ではない事実は省く。
+・良い例（45字程度）：「屋外歩行時にふらつきがあり、外出時は家族が付き添い腕を支えている。」
+・悪い例（長すぎる。前置きと重複説明を含む）：「本人は屋外において時々ふらつくことがあり、そのため外出する際には家族が付き添って腕を支える介助を行っている状況である。」
+どうしても45字では必須の事実（頻度・程度・具体的な支援内容など）を書き切れない場合に限り、60字程度までの超過を許容する。それ以上は許容しない。
 
 出力は下書き文そのものだけにしてください。前後の説明文、見出し、引用符、コードブロック記号（\`\`\`）は一切付けないでください。`;
 }
