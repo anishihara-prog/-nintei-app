@@ -98,7 +98,20 @@
       "Bash(rm -f /tmp/claude-1000/-workspaces--nintei-app--------/fdc2b4dd-9ad6-4558-acc4-98b2af3ec93a/scratchpad/verify-tooltip.mjs /tmp/claude-1000/-workspaces--nintei-app--------/fdc2b4dd-9ad6-4558-acc4-98b2af3ec93a/scratchpad/tooltip-*.png)",
       "Bash(rm -f /tmp/claude-1000/-workspaces--nintei-app--------/fdc2b4dd-9ad6-4558-acc4-98b2af3ec93a/scratchpad/verify-*.mjs /tmp/claude-1000/-workspaces--nintei-app--------/fdc2b4dd-9ad6-4558-acc4-98b2af3ec93a/scratchpad/diag.mjs /tmp/claude-1000/-workspaces--nintei-app--------/fdc2b4dd-9ad6-4558-acc4-98b2af3ec93a/scratchpad/swap-manual.png)",
       "Bash(rm -f /tmp/claude-1000/-workspaces--nintei-app--------/fdc2b4dd-9ad6-4558-acc4-98b2af3ec93a/scratchpad/check-tooltip*.mjs /tmp/claude-1000/-workspaces--nintei-app--------/fdc2b4dd-9ad6-4558-acc4-98b2af3ec93a/scratchpad/current-tooltip*.png)",
-      "Bash(rm -f /tmp/claude-1000/-workspaces--nintei-app--------/fdc2b4dd-9ad6-4558-acc4-98b2af3ec93a/scratchpad/check-*.mjs /tmp/claude-1000/-workspaces--nintei-app--------/fdc2b4dd-9ad6-4558-acc4-98b2af3ec93a/scratchpad/*.png)"
+      "Bash(rm -f /tmp/claude-1000/-workspaces--nintei-app--------/fdc2b4dd-9ad6-4558-acc4-98b2af3ec93a/scratchpad/check-*.mjs /tmp/claude-1000/-workspaces--nintei-app--------/fdc2b4dd-9ad6-4558-acc4-98b2af3ec93a/scratchpad/*.png)",
+      "Read(//tmp/claude-1000/**)",
+      "Bash(chromium-cli --help)",
+      "Bash(which chromium-cli *)",
+      "Read(//usr/local/bin/**)",
+      "Read(//tmp/claude-1000/bundled-skills/**)",
+      "Read(//tmp/claude-1000/bundled-skills/2.1.224/**)",
+      "Read(//home/node/.cache/ms-playwright/**)",
+      "Bash(apt list *)",
+      "Bash(sudo -n true)",
+      "Bash(timeout 30 bash -c 'until curl -sf http://localhost:5173 >/dev/null 2>&1; do sleep 1; done')",
+      "Bash(curl -sf http://localhost:3000)",
+      "Bash(unzip -l downloaded-download)",
+      "Bash(tail -60 /tmp/dev-all2.log)"
     ],
     "additionalDirectories": [
       "/tmp",

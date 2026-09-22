@@ -241,30 +241,3 @@ export async function runSuggestGroups(
     .filter((g) => g.itemIds.length >= 2);
 }
 
-export type DraftNoteMember = {
-  name: string;
-  option: string;
-  criteria: string;
-  kitaGuide: string;
-};
-
-export async function runSuggestDraftNote(
-  name: string,
-  category: string,
-  members: DraftNoteMember[],
-  context: string
-): Promise<string> {
-  const res = await fetch("/api/judge/draft-note", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, category, members, context }),
-  });
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body?.error || `下書き提案リクエストに失敗しました（HTTP ${res.status}）`);
-  }
-
-  const data = await res.json();
-  return typeof data?.draft === "string" ? data.draft : "";
-}

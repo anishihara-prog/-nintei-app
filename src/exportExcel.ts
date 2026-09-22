@@ -1,83 +1,67 @@
 import ExcelJS from "exceljs";
 
 // -------------------------------------------------------
-// 認定調査票(特記事項) Excel出力
-// 元の提出様式（xlsx）そのものが手元にないため、実際に様式を開いて
-// 共有してもらった行番号・列構成（B列＝群の縦書きラベル、C:D列＝項目番号の
-// プルダウン、E:M列＝特記文の結合セル、群ごとに固定行数の罫線）をもとに
-// 再現したもの。フォント・列幅など細部は実際の様式と異なる可能性がある。
+// 実ファイル「特記事項入力シート.xlsx」（public/templates/に同梱）をテンプレートと
+// してそのまま読み込み、区分ごとに用意された空欄行（C:D列＝項目番号、E:M列＝
+// 特記文、どちらも結合セル）に必要な行だけを埋めて書き出す。
+// 罫線・見出し・群ラベル・セル結合・プルダウン検証は元テンプレートに既に
+// 用意されているため、ここでは値の書き込みのみ行う。
+// このファイルにマクロは含まれないため、xlsmMacroRepairは不要。
 // -------------------------------------------------------
+
+const TEMPLATE_URL = "/templates/特記事項入力シート.xlsx";
 
 export type ExportItem = { id: string; category: string; name: string };
 export type ExportGroup = { itemIds: string[]; text: string };
 
 const ID_COL_FROM = 3; // C
-const ID_COL_TO = 4; // D
 const NOTE_COL_FROM = 5; // E
-const NOTE_COL_TO = 13; // M
-const LABEL_COL = 2; // B
+const SURVEY_DATE_CELL = { row: 2, col: 8 }; // H2（テンプレート側に日本語元号の日付書式が設定済み）
+const SUBJECT_NAME_CELL = { row: 2, col: 12 }; // L2
 
-type GroupLayout = { category: string; label: string; minRows: number };
+type SectionLayout = { category: string; dataRowFrom: number; dataRowTo: number };
 
-// 群ごとの記入行数は、実際の記入件数に応じて自動的に増減する
-// （件数が様式の目安行数を超えたら行を追加し、少なければ空欄行を削って詰める）。
-// minRowsは、記入がゼロ件でも群の区切りが分かるよう最低限確保する行数。
-// ラベルは番号と文言の間で改行させず、Excel側のvertical textの折り返しに任せる。
-const GROUP_LAYOUT: GroupLayout[] = [
-  { category: "1.移動や動作等", label: "1移動や動作等", minRows: 1 },
-  { category: "2.日常生活等", label: "2身の回りの世話や日常生活等", minRows: 1 },
-  { category: "3.意思疎通等", label: "3意思疎通等", minRows: 1 },
-  { category: "4.行動障害等", label: "4行動障害", minRows: 1 },
-  { category: "5.特別な医療", label: "5特別な医療", minRows: 1 },
+// 実ファイルの区分ごとの空欄行範囲（実ファイルを直接読み合わせて検証済み）
+const SECTION_LAYOUT: SectionLayout[] = [
+  { category: "1.移動や動作等", dataRowFrom: 5, dataRowTo: 10 },
+  { category: "2.日常生活等", dataRowFrom: 12, dataRowTo: 19 },
+  { category: "3.意思疎通等", dataRowFrom: 21, dataRowTo: 25 },
+  { category: "4.行動障害等", dataRowFrom: 27, dataRowTo: 37 },
+  { category: "5.特別な医療", dataRowFrom: 39, dataRowTo: 40 },
 ];
 
-const OTHER_GROUP = {
-  label: "6その他",
-  headerText: "認定調査の際に「調査対象者に必要とされる支援の度合い」に関することで確認できた事項",
-  contentRows: 2,
-};
+const isRequired = (status: string | undefined, baseline: string | undefined) =>
+  !!status && status !== baseline;
 
-const ERAS: { name: string; start: string }[] = [
-  { name: "令和", start: "2019-05-01" },
-  { name: "平成", start: "1989-01-08" },
-  { name: "昭和", start: "1926-12-25" },
-  { name: "大正", start: "1912-07-30" },
-  { name: "明治", start: "1868-01-25" },
-];
+// 複数項目をまとめた場合のIDラベルを作る。同じ群番号（例：1-4,1-5,1-6）なら
+// まとめて1つの括弧にする。4群（行動障害）だけ実ファイルのプルダウン候補が
+// 全角括弧・スペース無し表記のため、区分に応じて書式を切り替える。
+function formatIdLabel(ids: string[], category: string): string {
+  const isBehaviorGroup = category === "4.行動障害等";
+  const open = isBehaviorGroup ? "（" : "( ";
+  const close = isBehaviorGroup ? "）" : " )";
+  const sep = isBehaviorGroup ? "" : " ";
 
-const WEEKDAY_KANJI = ["日", "月", "火", "水", "木", "金", "土"];
-
-// <input type="date">のISO文字列（YYYY-MM-DD）を「令和7年9月17日(水)」の形式に変換する
-function toWareki(isoDate: string): string {
-  if (!isoDate) return "";
-  const d = new Date(`${isoDate}T00:00:00+09:00`);
-  if (Number.isNaN(d.getTime())) return isoDate;
-  const y = d.getFullYear();
-  const m = d.getMonth() + 1;
-  const day = d.getDate();
-  const weekday = WEEKDAY_KANJI[d.getDay()];
-
-  for (const era of ERAS) {
-    const eraStart = new Date(`${era.start}T00:00:00+09:00`);
-    if (d.getTime() >= eraStart.getTime()) {
-      const eraYear = y - eraStart.getFullYear() + 1;
-      const yearLabel = eraYear === 1 ? "元" : String(eraYear);
-      return `${era.name}${yearLabel}年${m}月${day}日(${weekday})`;
-    }
+  const parsed = ids.map(id => {
+    const m = id.match(/^(\d+)-(\d+)$/);
+    return m ? { group: m[1], num: m[2] } : null;
+  });
+  if (parsed.length > 0 && parsed.every(p => p !== null) && parsed.every(p => p!.group === parsed[0]!.group)) {
+    const group = parsed[0]!.group;
+    return `${open}${group}-${parsed.map(p => p!.num).join(",")}${close}`;
   }
-  return `${y}年${m}月${day}日(${weekday})`;
+  return ids.map(id => `${open}${id}${close}`).join(sep);
 }
-
-const isRequired = (status: string | undefined) =>
-  !!status && !status.startsWith("1.") && status !== "生活に支障なし" && status !== "ない";
 
 type NoteRow = { ids: string[]; label: string; text: string };
 
 function buildRows(
   categoryItems: ExportItem[],
+  category: string,
   selections: Record<string, string>,
   editedNotes: Record<string, string>,
-  groups: ExportGroup[]
+  groups: ExportGroup[],
+  baselineByItemId: Record<string, string>
 ): NoteRow[] {
   const groupByItemId = new Map<string, ExportGroup>();
   for (const g of groups) {
@@ -94,93 +78,38 @@ function buildRows(
       renderedGroups.add(group);
       const text = (group.text || "").trim();
       if (!text) continue;
-      rows.push({ ids: group.itemIds, label: group.itemIds.map(id => `(${id})`).join(""), text });
+      rows.push({ ids: group.itemIds, label: formatIdLabel(group.itemIds, category), text });
       continue;
     }
-    if (!isRequired(selections[item.id])) continue;
+    if (!isRequired(selections[item.id], baselineByItemId[item.id])) continue;
     const text = (editedNotes[item.id] || "").trim();
     if (!text) continue;
-    rows.push({ ids: [item.id], label: `(${item.id})`, text });
+    rows.push({ ids: [item.id], label: formatIdLabel([item.id], category), text });
   }
 
   return rows;
 }
 
-function styleGroupLabel(ws: ExcelJS.Worksheet, fromRow: number, toRow: number, label: string) {
-  ws.mergeCells(fromRow, LABEL_COL, toRow, LABEL_COL);
-  const cell = ws.getCell(fromRow, LABEL_COL);
-  cell.value = label;
-  cell.font = { size: 10, bold: true };
-  cell.alignment = { horizontal: "center", vertical: "middle", textRotation: "vertical", wrapText: true };
+function estimateRowHeightPt(text: string, fontSize: number, charsPerLineAtSize10 = 42): number {
+  const charsPerLine = Math.max(10, Math.round((charsPerLineAtSize10 * 10) / fontSize));
+  const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
+  const lineHeightPt = fontSize * 1.3;
+  return Math.max(15, lines * lineHeightPt + 3);
 }
 
-// 矩形の外周だけに罫線を引く（内側の罫線は上書きしない）
-function applyRectBorder(
-  ws: ExcelJS.Worksheet,
-  r1: number,
-  c1: number,
-  r2: number,
-  c2: number,
-  style: ExcelJS.BorderStyle
-) {
-  for (let r = r1; r <= r2; r++) {
-    for (let c = c1; c <= c2; c++) {
-      const cell = ws.getCell(r, c);
-      const border = { ...cell.border };
-      if (r === r1) border.top = { style };
-      if (r === r2) border.bottom = { style };
-      if (c === c1) border.left = { style };
-      if (c === c2) border.right = { style };
-      cell.border = border;
-    }
-  }
-}
-
-function applyRowSeparator(ws: ExcelJS.Worksheet, row: number) {
-  for (let c = ID_COL_FROM; c <= NOTE_COL_TO; c++) {
-    ws.getCell(row, c).border = { bottom: { style: "dotted" } };
-  }
-}
-
-function writeHeaderRow(ws: ExcelJS.Worksheet, row: number, text: string) {
-  ws.mergeCells(row, ID_COL_FROM, row, NOTE_COL_TO);
-  const cell = ws.getCell(row, ID_COL_FROM);
-  cell.value = text;
-  cell.font = { size: 8 };
-  cell.alignment = { wrapText: true, vertical: "top" };
-  ws.getRow(row).height = 26;
-  applyRowSeparator(ws, row);
-}
-
-function writeContentRow(
-  ws: ExcelJS.Worksheet,
-  row: number,
-  noteRow: NoteRow | undefined,
-  dropdownIds: string[]
-) {
-  ws.mergeCells(row, ID_COL_FROM, row, ID_COL_TO);
+function writeDataRow(ws: ExcelJS.Worksheet, row: number, noteRow: NoteRow | undefined) {
+  if (!noteRow) return; // 未使用行はテンプレートの空欄のまま
   const idCell = ws.getCell(row, ID_COL_FROM);
-  idCell.value = noteRow ? noteRow.label : "";
-  idCell.font = { size: 10 };
-  idCell.alignment = { horizontal: "center", vertical: "top" };
-  if (dropdownIds.length > 0) {
-    idCell.dataValidation = {
-      type: "list",
-      allowBlank: true,
-      formulae: [`"${dropdownIds.map(id => `(${id})`).join(",")}"`],
-    };
-  }
+  idCell.value = noteRow.label;
 
-  ws.mergeCells(row, NOTE_COL_FROM, row, NOTE_COL_TO);
   const noteCell = ws.getCell(row, NOTE_COL_FROM);
-  noteCell.value = noteRow ? noteRow.text : "";
-  noteCell.font = { size: 10 };
-  noteCell.alignment = { wrapText: true, vertical: "top" };
+  noteCell.value = noteRow.text;
+  noteCell.alignment = { ...(noteCell.alignment || {}), wrapText: true, vertical: "top" };
 
-  const estimatedLines = noteRow ? Math.max(1, Math.ceil(noteRow.text.length / 42)) : 1;
-  ws.getRow(row).height = Math.max(18, estimatedLines * 15);
-
-  applyRowSeparator(ws, row);
+  const estimated = estimateRowHeightPt(noteRow.text, (noteCell.font && noteCell.font.size) || 10);
+  if (!ws.getRow(row).height || ws.getRow(row).height! < estimated) {
+    ws.getRow(row).height = estimated;
+  }
 }
 
 export async function exportAssessmentToExcel(params: {
@@ -188,79 +117,52 @@ export async function exportAssessmentToExcel(params: {
   selections: Record<string, string>;
   editedNotes: Record<string, string>;
   groups: ExportGroup[];
-  surveyDate: string;
-  subjectName: string;
-  disabilityGrade?: string;
+  baselineByItemId: Record<string, string>;
+  surveyDate?: string;
+  subjectName?: string;
   fileName?: string;
 }) {
-  const { items, selections, editedNotes, groups, surveyDate, subjectName, disabilityGrade, fileName } = params;
+  const { items, selections, editedNotes, groups, baselineByItemId, surveyDate, subjectName, fileName } = params;
+
+  const res = await fetch(TEMPLATE_URL);
+  if (!res.ok) throw new Error(`テンプレートの取得に失敗しました: ${TEMPLATE_URL}`);
+  const originalBuffer = await res.arrayBuffer();
 
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("特記事項", {
-    pageSetup: { paperSize: 9, orientation: "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
-  });
-  ws.columns = [
-    { width: 3 }, // A: 余白
-    { width: 4 }, // B: 群ラベル
-    { width: 6 }, // C
-    { width: 6 }, // D
-    ...Array.from({ length: NOTE_COL_TO - NOTE_COL_FROM + 1 }, () => ({ width: 9 })), // E-M
-  ];
+  await wb.xlsx.load(originalBuffer);
+  const ws = wb.getWorksheet("特記事項");
+  if (!ws) throw new Error("テンプレートに「特記事項」シートが見つかりません");
 
-  let r = 1; // 上部余白行
-  r++; // r=2: タイトル・調査日・氏名
+  if (surveyDate) {
+    const d = new Date(`${surveyDate}T00:00:00+09:00`);
+    if (!Number.isNaN(d.getTime())) {
+      ws.getCell(SURVEY_DATE_CELL.row, SURVEY_DATE_CELL.col).value = d;
+    }
+  }
+  if (subjectName) {
+    ws.getCell(SUBJECT_NAME_CELL.row, SUBJECT_NAME_CELL.col).value = subjectName;
+  }
 
-  ws.mergeCells(2, LABEL_COL, 2, NOTE_COL_TO);
-  const metaParts = [`調査日：${toWareki(surveyDate)}`, `対象者氏名：${subjectName || ""}`];
-  if (disabilityGrade) metaParts.push(`障害等級：${disabilityGrade}`);
-  ws.getCell(2, LABEL_COL).value = {
-    richText: [
-      { font: { size: 12, bold: true }, text: "認定調査票(特記事項)　　" },
-      { font: { size: 9 }, text: metaParts.join("　　") },
-    ],
-  };
-  r = 4; // r=3: 空白の間隔行
+  const overflow: string[] = [];
 
-  for (const g of GROUP_LAYOUT) {
-    const categoryItems = items.filter(i => i.category === g.category);
-    const rows = buildRows(categoryItems, selections, editedNotes, groups);
-    const headerText =
-      g.category === "4.行動障害等"
-        ? "行動障害に関する項目　4-1から4-34"
-        : categoryItems.map(i => i.name).join("　");
+  for (const section of SECTION_LAYOUT) {
+    const categoryItems = items.filter(i => i.category === section.category);
+    const rows = buildRows(categoryItems, section.category, selections, editedNotes, groups, baselineByItemId);
 
-    const headerRow = r;
-    writeHeaderRow(ws, headerRow, headerText);
-    r++;
-
-    const contentRows = Math.max(rows.length, g.minRows);
-    for (let i = 0; i < contentRows; i++) {
-      writeContentRow(ws, r, rows[i], categoryItems.map(it => it.id));
-      r++;
+    const capacity = section.dataRowTo - section.dataRowFrom + 1;
+    if (rows.length > capacity) {
+      overflow.push(`${section.category}（${rows.length}件 / 記入欄${capacity}行）`);
     }
 
-    styleGroupLabel(ws, headerRow, r - 1, g.label);
-    applyRectBorder(ws, headerRow, LABEL_COL, r - 1, NOTE_COL_TO, "thin");
+    for (let i = 0; i < capacity; i++) {
+      writeDataRow(ws, section.dataRowFrom + i, rows[i]);
+    }
   }
 
-  // 6.その他：現状アプリ側にこの内容を集める項目がないため、様式の見出しのみ用意し空欄にしておく
-  const otherHeaderRow = r;
-  writeHeaderRow(ws, otherHeaderRow, OTHER_GROUP.headerText);
-  r++;
-  for (let i = 0; i < OTHER_GROUP.contentRows; i++) {
-    writeContentRow(ws, r, undefined, []);
-    r++;
-  }
-  styleGroupLabel(ws, otherHeaderRow, r - 1, OTHER_GROUP.label);
-  applyRectBorder(ws, otherHeaderRow, LABEL_COL, r - 1, NOTE_COL_TO, "thin");
-
-  // 項目の表（1〜6群の一覧）の外枠だけを太罫線にする。タイトル行は含めない
-  applyRectBorder(ws, 4, LABEL_COL, r - 1, NOTE_COL_TO, "thick");
-
-  // B列（群ラベル）の右側に縦線を1本通す
-  for (let row = 4; row <= r - 1; row++) {
-    const cell = ws.getCell(row, LABEL_COL);
-    cell.border = { ...cell.border, right: { style: "thin" } };
+  if (overflow.length > 0) {
+    window.alert(
+      `様式の記入欄より件数が多いため、一部の特記事項が出力されていません：${overflow.join("、")}`
+    );
   }
 
   const buffer = await wb.xlsx.writeBuffer();
@@ -270,7 +172,7 @@ export async function exportAssessmentToExcel(params: {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = fileName || `認定調査票_特記事項_${surveyDate || "未記入"}.xlsx`;
+  a.download = fileName || `特記事項_記入済み_${Date.now()}.xlsx`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

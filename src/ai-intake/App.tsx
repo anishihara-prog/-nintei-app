@@ -5,12 +5,13 @@ import {
   Send, CheckCircle2, Bot, User, Download
 } from 'lucide-react';
 import { exportAssessmentToExcel } from '../exportExcel';
+import { exportSurveySheetToExcel } from '../exportSurveySheet';
 import {
   runJudge, buildJudgeRequestItems, identifyGapItems, composeIntakeWithTranscript,
-  runGenerateFollowUpQuestions, runSuggestGroups, runSuggestDraftNote,
+  runGenerateFollowUpQuestions, runSuggestGroups,
   type JudgeMeta, type JudgeResult, type JudgeRequestItem,
   type TranscriptEntry, type FollowUpQuestion,
-  type GroupSuggestion, type GroupSuggestionItem, type DraftNoteMember
+  type GroupSuggestion, type GroupSuggestionItem
 } from './judgeApi';
 
 // このファイルは src/App.tsx をコピーして作成した「AIで一括判定」モードです。
@@ -1432,32 +1433,32 @@ const GROUP_NOTES: Record<string, string> = {
     "・意思決定が困難な場合は、（意思決定支援の下で）**「支援が必要な状態」に基づき判断**する。",
   "2.日常生活等":
     "・IADL（食事・排泄・入浴等のADLより複雑な日常生活動作）が対象。ADLに支援を要する場合はIADLも要することが多い。\n" +
-    "・できる/できないが変動する場合は「できない状況」で判断する。\n" +
-    "・自宅・単身を想定して判断する（施設入所中でも同様の視点）。義肢・装具・自助具等は使用している状態で評価する。\n" +
-    "・変動がある場合は、その頻度や状況を特記事項に記載する。\n" +
-    "・義肢・装具・車椅子等の補装具は使用している状態で評価する。\n" +
-    "・意思決定が困難な場合は、（意思決定支援の下で）「支援が必要な状態」に基づき判断する。\n" +
-    "・レストランや食堂など自宅以外で食事をする際も想定する。\n" +
-    "・本来であれば行うべき支援が行われていない場合は、「実際に行われている支援」ではなく、「本来行うべき支援」に基づく判断となる。",
+    "・できる/できないが変動する場合は**「できない状況」で判断**する。\n" +
+    "・**自宅・単身を想定して判断**する（施設入所中でも同様の視点）。義肢・装具・自助具等は**使用している状態で評価**する。\n" +
+    "・変動がある場合は、その**頻度や状況を特記事項に記載**する。\n" +
+    "・義肢・装具・車椅子等の**補装具は使用している状態で評価**する。\n" +
+    "・意思決定が困難な場合は、（意思決定支援の下で）**「支援が必要な状態」に基づき判断**する。\n" +
+    "・レストランや食堂など**自宅以外で食事をする際も想定**する。\n" +
+    "・本来であれば行うべき支援が行われていない場合は、「実際に行われている支援」ではなく、**「本来行うべき支援」に基づく判断**となる。",
   "3.意思疎通等":
-    "・「できたりできなかったりする場合」は、「できない状況」に基づき判断する。「できない状況」に基づく判断は、運動機能の低下に限らず、「知的障害、精神障害や発達障害による行動上の障害（意欲低下や多動等）」や「内部障害や難病等の筋力低下や易疲労感」等によって「できない場合」、「慣れていない状況や初めての場所」等では「できない場合」を含めて判断する。\n" +
-    "・「障害の状態や難病等の症状に変化がある場合」や「視覚障害や盲重複障害、聴覚障害やろう重複障害により意思決定のためには情報提供等の支援を必要とする場合」、「知的障害、精神障害や発達障害により調査項目に関する意思決定が困難な場合」は「支援が必要な状態」に基づき判断する。\n" +
-    "・「補装具等の福祉用具を使用している場合」は、「使用している状況」に基づき判断する。\n" +
-    "・「できたりできなかったりする場合」や「障害の状態や難病等の症状に変化がある場合」は、その頻度や支援の詳細な状況を「特記事項」に記載する。\n" +
-    "・眼鏡・補聴器は装着している状態で評価する。\n" +
-    "・視力は明るい環境でメガネ着用、聴力は静かな環境で補聴器着用のうえ確認する。",
+    "・「できたりできなかったりする場合」は、**「できない状況」に基づき判断**する。「できない状況」に基づく判断は、運動機能の低下に限らず、「知的障害、精神障害や発達障害による行動上の障害（意欲低下や多動等）」や「内部障害や難病等の筋力低下や易疲労感」等によって「できない場合」、「慣れていない状況や初めての場所」等では**「できない場合」を含めて判断**する。\n" +
+    "・「障害の状態や難病等の症状に変化がある場合」や「視覚障害や盲重複障害、聴覚障害やろう重複障害により意思決定のためには情報提供等の支援を必要とする場合」、「知的障害、精神障害や発達障害により調査項目に関する意思決定が困難な場合」は**「支援が必要な状態」に基づき判断**する。\n" +
+    "・「補装具等の福祉用具を使用している場合」は、**「使用している状況」に基づき判断**する。\n" +
+    "・「できたりできなかったりする場合」や「障害の状態や難病等の症状に変化がある場合」は、その**頻度や支援の詳細な状況を「特記事項」に記載**する。\n" +
+    "・眼鏡・補聴器は**装着している状態で評価**する。\n" +
+    "・視力は明るい環境でメガネ着用、聴力は静かな環境で**補聴器着用のうえ確認**する。",
   "4.行動障害等":
-    "・調査日前1か月の状況で判断する（症状に変動がある場合は過去1年間で最も支援が必要だった1か月の状況）。\n" +
-    "・場所・場面・相手を問わず評価する（自宅・施設・外出先いずれも含む）。\n" +
-    "・投薬中・予防的支援中でも、症状が生じる可能性があれば評価対象とする。\n" +
+    "・**調査日前1か月の状況で判断**する（症状に変動がある場合は過去1年間で最も支援が必要だった1か月の状況）。\n" +
+    "・**場所・場面・相手を問わず評価**する（自宅・施設・外出先いずれも含む）。\n" +
+    "・投薬中・予防的支援中でも、**症状が生じる可能性があれば評価対象**とする。\n" +
     "・各項目の例示に類似する行為も含めて判断する。\n" +
     "・行動上の障害が生じないように行っている支援や配慮、投薬等の頻度を含め判断する。そのため、「行動上の障害が現れた場合」と「行動上の障害が現れないように支援している場合」は同等の評価となる。",
   "5.特別な医療":
-    "・過去14日間の状況で判断する。\n" +
-    "・医師または医師の指示を受けた看護師・准看護師等による継続的な医療行為が対象（急性疾患等への短期対応は除く）。\n" +
-    "・本人・家族・研修を受けた介護職員等による類似行為（胃ろう注入・痰吸引等）も評価対象とする。\n" +
-    "・継続して実施されている医療行為のみが対象であり、急性疾患等への対応で一時的に実施される医療行為は含まれない。\n" +
-    "・14日以前に受けた医療行為や選択肢以外の医療行為であっても、現在の支援に影響を及ぼすと考えられる場合は特記事項に記載する。",
+    "・**過去14日間の状況で判断**する。\n" +
+    "・医師または医師の指示を受けた看護師・准看護師等による**継続的な医療行為が対象**（急性疾患等への短期対応は除く）。\n" +
+    "・本人・家族・研修を受けた介護職員等による**類似行為（胃ろう注入・痰吸引等）も評価対象**とする。\n" +
+    "・**継続して実施されている医療行為のみが対象**であり、急性疾患等への対応で一時的に実施される医療行為は含まれない。\n" +
+    "・14日以前に受けた医療行為や選択肢以外の医療行為であっても、**現在の支援に影響を及ぼすと考えられる場合は特記事項に記載**する。",
 };
 
 // -------------------------------------------------------
@@ -1509,9 +1510,17 @@ const INITIAL_SELECTIONS: Record<string, string> = {
   "5-7":"ない","5-8":"ない","5-9":"ない","5-10":"ない","5-11":"ない","5-12":"ない",
 };
 
-// 特記出力が必要かどうかの判定
-const isRequired = (status: string) =>
-  !status.startsWith("1.") && status !== "生活に支障なし" && status !== "ない";
+// 項目ごとの「支援不要」相当の基準値（各項目のoptions[0]）
+const ITEM_BASELINE: Record<string, string> = Object.fromEntries(
+  ASSESSMENT_ITEMS.map(item => [item.id, item.options[0]])
+);
+
+// 特記出力が必要かどうかの判定（文言パターンではなく、その項目自身の
+// 基準値（options[0]）と一致するかどうかで判定する。3-4「理解できる」・
+// 3-5「支援不要」（数字プレフィックス無し）のように"1."で始まらない
+// 基準値を持つ項目でも正しく判定できる）
+const isRequired = (status: string | undefined, itemId: string) =>
+  !!status && status !== ITEM_BASELINE[itemId];
 
 // 「留意点を見る」の要約表示用：最初の1文（。まで）だけを返す
 const firstSentence = (text: string) => {
@@ -1595,7 +1604,6 @@ const STORAGE_KEYS = {
   surveyDate: "ai_intake_survey_date",
   subjectName: "ai_intake_subject_name",
   aiReviewComments: "ai_intake_ai_review_comments",
-  draftNotes: "ai_intake_draft_notes",
   chatRound: "ai_intake_chat_round",
   chatStatus: "ai_intake_chat_status",
   pendingQuestions: "ai_intake_pending_questions",
@@ -1654,18 +1662,13 @@ export default function App() {
 
   const [selectedForGroup, setSelectedForGroup] = useState<string[]>([]);
   const [groupSelectWarning, setGroupSelectWarning] = useState("");
+  const [showOnlyGroupCandidates, setShowOnlyGroupCandidates] = useState(false);
   const [groups, setGroups] = useState<NoteGroup[]>(() =>
     loadFromStorage(STORAGE_KEYS.groups, [])
   );
   const [groupSuggestions, setGroupSuggestions] = useState<GroupSuggestion[]>([]);
   const [groupSuggestLoading, setGroupSuggestLoading] = useState(false);
   const [groupSuggestError, setGroupSuggestError] = useState("");
-
-  const [draftNotes, setDraftNotes] = useState<Record<string, string>>(() =>
-    loadFromStorage(STORAGE_KEYS.draftNotes, {})
-  );
-  const [draftLoading, setDraftLoading] = useState<Record<string, boolean>>({});
-  const [draftError, setDraftError] = useState<Record<string, string>>({});
 
   // --- ここから：AIで一括判定モード用の追加state ---
   const [intakeText, setIntakeText] = useState<string>(() =>
@@ -1745,10 +1748,6 @@ export default function App() {
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.aiReviewComments, aiReviewComments);
   }, [aiReviewComments]);
-
-  useEffect(() => {
-    saveToStorage(STORAGE_KEYS.draftNotes, draftNotes);
-  }, [draftNotes]);
 
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.chatRound, chatRound);
@@ -1956,6 +1955,7 @@ export default function App() {
     createGroupFromIds(selectedForGroup);
     setSelectedForGroup([]);
     setGroupSelectWarning("");
+    setShowOnlyGroupCandidates(false);
   };
 
   const handleUngroup = (groupId: string) => {
@@ -1968,7 +1968,7 @@ export default function App() {
 
   const handleSuggestGroups = async () => {
     const targets: GroupSuggestionItem[] = ASSESSMENT_ITEMS
-      .filter(item => item.category !== "5.特別な医療" && isRequired(selections[item.id]) && !groupedItemIds.has(item.id))
+      .filter(item => item.category !== "5.特別な医療" && isRequired(selections[item.id], item.id) && !groupedItemIds.has(item.id))
       .map(item => {
         const status = selections[item.id];
         return {
@@ -2007,26 +2007,30 @@ export default function App() {
     setGroupSuggestions(prev => prev.filter(g => g !== suggestion));
   };
 
-  const handleSuggestDraft = async (
-    id: string,
-    name: string,
-    category: string,
-    members: DraftNoteMember[]
-  ) => {
-    setDraftLoading(prev => ({ ...prev, [id]: true }));
-    setDraftError(prev => ({ ...prev, [id]: "" }));
-    try {
-      const context = composeIntakeWithTranscript(intakeText, transcript);
-      const draft = await runSuggestDraftNote(name, category, members, context);
-      setDraftNotes(prev => ({ ...prev, [id]: draft }));
-    } catch (err) {
-      setDraftError(prev => ({
-        ...prev,
-        [id]: err instanceof Error ? err.message : "下書きの提案に失敗しました。",
-      }));
-    } finally {
-      setDraftLoading(prev => ({ ...prev, [id]: false }));
-    }
+  // 「下書き生成」：特記欄が空の項目にのみ、テンプレート文を自動挿入する（既存の手入力は上書きしない）
+  const handleGenerateDraft = (itemId: string, status: string, template: (status: string) => string) => {
+    setEditedNotes(prev => {
+      if ((prev[itemId] || "").trim() !== "") return prev;
+      return { ...prev, [itemId]: template(status) };
+    });
+  };
+
+  // グループの「下書き生成」：グループ内各項目のtemplate結果を連結し、1つの特記文にする
+  // （グループの特記欄が空の場合のみ挿入し、既存の手入力は上書きしない）
+  const handleGenerateGroupDraft = (groupId: string, itemIds: string[]) => {
+    setGroups(prev => prev.map(g => {
+      if (g.id !== groupId) return g;
+      if ((g.text || "").trim() !== "") return g;
+      const combined = itemIds
+        .map(id => {
+          const gi = ASSESSMENT_ITEMS.find(i => i.id === id);
+          if (!gi || typeof gi.template !== "function") return "";
+          return gi.template(selections[id]).trim();
+        })
+        .filter(Boolean)
+        .join("");
+      return { ...g, text: combined };
+    }));
   };
 
   // 項目と特記事項を同じ行に揃えて表示するための、特記側セルの描画。
@@ -2096,39 +2100,13 @@ export default function App() {
             </p>
           )}
           <button
-            onClick={() => handleSuggestDraft(
-              owningGroup.id,
-              names,
-              [...new Set(owningGroup.itemIds.map(id => ASSESSMENT_ITEMS.find(i => i.id === id)?.category).filter(Boolean))].join("・"),
-              owningGroup.itemIds.map(id => {
-                const gi = ASSESSMENT_ITEMS.find(i => i.id === id);
-                return {
-                  name: gi?.name || id,
-                  option: selections[id],
-                  criteria: OPTION_CRITERIA[id]?.[selections[id]] || "",
-                  kitaGuide: gi?.kitaGuide || "",
-                };
-              })
-            )}
-            disabled={!!draftLoading[owningGroup.id]}
+            onClick={() => handleGenerateGroupDraft(owningGroup.id, owningGroup.itemIds)}
+            disabled={owningGroup.text.trim() !== ""}
             className="mt-1.5 flex items-center gap-1 text-[10px] font-black text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
           >
-            {draftLoading[owningGroup.id] ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-            {draftLoading[owningGroup.id] ? "AIが下書き中…" : "AIに下書きを提案してもらう"}
+            <FileText className="w-3 h-3" />
+            下書き生成
           </button>
-          {draftError[owningGroup.id] && (
-            <p className="text-[10px] font-bold text-red-600 mt-1">{draftError[owningGroup.id]}</p>
-          )}
-          {draftNotes[owningGroup.id] && (
-            <div
-              className="mt-1.5 px-2.5 py-1.5 rounded border border-dashed border-amber-300 bg-amber-50 text-[10px] text-amber-900 select-none"
-              onCopy={e => e.preventDefault()}
-              onContextMenu={e => e.preventDefault()}
-            >
-              <p className="font-black mb-0.5">AI下書き（参考用・コピー不可）</p>
-              {draftNotes[owningGroup.id]}
-            </div>
-          )}
           {review && review.comment && (
             <div className={`mt-1.5 px-2.5 py-1.5 rounded text-[10px] font-bold flex items-start gap-1.5 ${
               review.needsAttention
@@ -2164,36 +2142,15 @@ export default function App() {
           className="w-full px-2.5 py-1.5 bg-white rounded border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-500 resize-y min-h-[50px] leading-relaxed"
           placeholder="特記事項を入力"
         />
-        <button
-          onClick={() => handleSuggestDraft(
-            item.id,
-            item.name,
-            item.category,
-            [{
-              name: item.name,
-              option: status,
-              criteria: OPTION_CRITERIA[item.id]?.[status] || "",
-              kitaGuide: item.kitaGuide,
-            }]
-          )}
-          disabled={!!draftLoading[item.id]}
-          className="mt-1.5 flex items-center gap-1 text-[10px] font-black text-slate-600 hover:text-slate-800 disabled:opacity-50"
-        >
-          {draftLoading[item.id] ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-          {draftLoading[item.id] ? "AIが下書き中…" : "AIに下書きを提案してもらう"}
-        </button>
-        {draftError[item.id] && (
-          <p className="text-[10px] font-bold text-red-600 mt-1">{draftError[item.id]}</p>
-        )}
-        {draftNotes[item.id] && (
-          <div
-            className="mt-1.5 px-2.5 py-1.5 rounded border border-dashed border-amber-300 bg-amber-50 text-[10px] text-amber-900 select-none"
-            onCopy={e => e.preventDefault()}
-            onContextMenu={e => e.preventDefault()}
+        {typeof item.template === "function" && (
+          <button
+            onClick={() => handleGenerateDraft(item.id, status, item.template)}
+            disabled={currentText.trim() !== ""}
+            className="mt-1.5 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
-            <p className="font-black mb-0.5">AI下書き（参考用・コピー不可）</p>
-            {draftNotes[item.id]}
-          </div>
+            <FileText className="w-3 h-3" />
+            下書き生成
+          </button>
         )}
         {review && review.comment && (
           <div className={`mt-1.5 px-2.5 py-1.5 rounded text-[10px] font-bold flex items-start gap-1.5 ${
@@ -2212,7 +2169,7 @@ export default function App() {
   const generateAllSpecialNotes = () => {
     const individual = ASSESSMENT_ITEMS.map(item => {
       const status = selections[item.id];
-      if (!isRequired(status) || groupedItemIds.has(item.id)) return null;
+      if (!isRequired(status, item.id) || groupedItemIds.has(item.id)) return null;
       return editedNotes[item.id] || "";
     }).filter((t): t is string => t !== null && t !== "");
     const grouped = groups.map(g => g.text).filter(t => t.trim() !== "");
@@ -2245,12 +2202,26 @@ export default function App() {
         selections,
         editedNotes,
         groups,
+        baselineByItemId: ITEM_BASELINE,
         surveyDate,
         subjectName,
-        disabilityGrade,
       });
     } finally {
       setExportingExcel(false);
+    }
+  };
+
+  const [exportingSurvey, setExportingSurvey] = useState(false);
+
+  const handleExportSurveySheet = async () => {
+    setExportingSurvey(true);
+    try {
+      await exportSurveySheetToExcel({
+        items: ASSESSMENT_ITEMS,
+        selections,
+      });
+    } finally {
+      setExportingSurvey(false);
     }
   };
 
@@ -2268,9 +2239,6 @@ export default function App() {
     setGroups([]);
     setGroupSuggestions([]);
     setGroupSuggestError("");
-    setDraftNotes({});
-    setDraftLoading({});
-    setDraftError({});
     setTranscript([]);
     setChatRound(0);
     setChatStatus("idle");
@@ -2285,7 +2253,7 @@ export default function App() {
 
   const handleReviewWithAi = async () => {
     const individualTargets = ASSESSMENT_ITEMS
-      .filter(item => isRequired(selections[item.id]) && !groupedItemIds.has(item.id))
+      .filter(item => isRequired(selections[item.id], item.id) && !groupedItemIds.has(item.id))
       .map(item => {
         const status = selections[item.id];
         const text = editedNotes[item.id] || "";
@@ -2373,11 +2341,16 @@ export default function App() {
 
   const categories = ["すべて", "1.移動や動作等", "2.日常生活等", "3.意思疎通等", "4.行動障害等", "5.特別な医療"];
 
+  const groupAnchorStatus = selectedForGroup.length > 0 ? selections[selectedForGroup[0]] : undefined;
+
   const filteredItems = ASSESSMENT_ITEMS.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           item.description.includes(searchTerm);
     const matchesCategory = selectedCategory === "すべて" || item.category.includes(selectedCategory.replace("すべて", ""));
-    return matchesSearch && matchesCategory;
+    const matchesGroupFilter =
+      !showOnlyGroupCandidates || !groupAnchorStatus ||
+      selectedForGroup.includes(item.id) || selections[item.id] === groupAnchorStatus;
+    return matchesSearch && matchesCategory && matchesGroupFilter;
   });
 
   return (
@@ -2401,7 +2374,7 @@ export default function App() {
                 </span>
               </h1>
               <p className="text-[11px] text-slate-400">
-                基本調査①②③全項目対応。特記シートの1マス・1行に収まる特記を自動作成。
+                基本調査①②③全項目対応。特記シートの1マス・1行に収まる特記を作成。
               </p>
             </div>
           </div>
@@ -2765,27 +2738,56 @@ export default function App() {
           )}
         </div>
 
-        {/* グループ選択バナー */}
+        {/* グループ選択バナー（スクロールしても見失わないようsticky表示） */}
         {selectedForGroup.length > 0 && (
-          <div className="bg-indigo-50 border border-indigo-300 rounded-xl p-3 flex items-center justify-between gap-3 text-xs mb-4">
-            <span className="font-black text-indigo-800">
-              {selectedForGroup.length}件を選択中（複数選ぶとまとめて1つの特記文にできます。同じ判定の項目同士のみ選択できます）
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={handleCreateGroup}
-                disabled={selectedForGroup.length < 2}
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black px-3 py-1.5 rounded-lg text-[11px]"
-              >
-                まとめて特記文にする
-              </button>
-              <button
-                onClick={() => { setSelectedForGroup([]); setGroupSelectWarning(""); }}
-                className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-1.5 rounded-lg text-[11px] border border-indigo-300"
-              >
-                選択解除
-              </button>
+          <div className="sticky top-0 z-30 bg-indigo-50 border border-indigo-300 rounded-xl p-3 flex flex-col gap-2 text-xs mb-4 shadow-md">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span className="font-black text-indigo-800">
+                {selectedForGroup.length}件を選択中（複数選ぶとまとめて1つの特記文にできます。同じ判定の項目同士のみ選択できます）
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCreateGroup}
+                  disabled={selectedForGroup.length < 2}
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black px-3 py-1.5 rounded-lg text-[11px]"
+                >
+                  まとめて特記文にする
+                </button>
+                <button
+                  onClick={() => { setSelectedForGroup([]); setGroupSelectWarning(""); setShowOnlyGroupCandidates(false); }}
+                  className="bg-white hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-1.5 rounded-lg text-[11px] border border-indigo-300"
+                >
+                  選択解除
+                </button>
+              </div>
             </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {selectedForGroup.map(id => {
+                const item = ASSESSMENT_ITEMS.find(i => i.id === id);
+                return (
+                  <button
+                    key={id}
+                    onClick={() => toggleGroupSelect(id)}
+                    title="選択解除"
+                    className="flex items-center gap-1 bg-white border border-indigo-300 text-indigo-800 font-bold px-2 py-1 rounded-full text-[11px] hover:bg-indigo-100"
+                  >
+                    {item ? item.name : id}
+                    <span className="text-indigo-400">×</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <label className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-700 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showOnlyGroupCandidates}
+                onChange={e => setShowOnlyGroupCandidates(e.target.checked)}
+                className="w-3.5 h-3.5 accent-indigo-600"
+              />
+              同じ判定の項目のみ表示（まとめる候補を絞り込みます）
+            </label>
           </div>
         )}
         {groupSelectWarning && (
@@ -2801,7 +2803,7 @@ export default function App() {
             );
             return filteredItems.map(item => {
               const currentSelection = selections[item.id];
-              const itemRequired = isRequired(currentSelection);
+              const itemRequired = isRequired(currentSelection, item.id);
               const inGroup = groupedItemIds.has(item.id);
               const owningGroup = groupByItemId.get(item.id);
               const showGroupNote = item.category !== lastGroupCategory;
@@ -2905,7 +2907,7 @@ export default function App() {
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pl-7 mb-4">
                       {item.options.map(opt => {
                         const isSelected = currentSelection === opt;
-                        const optRequired = isRequired(opt);
+                        const optRequired = isRequired(opt, item.id);
                         return (
                           <button
                             key={opt}
@@ -2936,31 +2938,6 @@ export default function App() {
                           </button>
                         );
                       })}
-                    </div>
-
-                    <div className="pl-7 mb-2">
-                      <label className="text-[11px] font-black text-slate-600 mb-1 flex items-center gap-1">
-                        <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
-                        <span>よく使う言い回し（クリックで単語を右側の特記事項に追加／もう一度クリックで削除）</span>
-                      </label>
-                      <div className="flex flex-wrap gap-1">
-                        {item.keywordRules.map(rule => {
-                          const isInserted = (editedNotes[item.id] || "").includes(rule.key);
-                          return (
-                            <button
-                              key={rule.key}
-                              onClick={() => handleTogglePhrase(item.id, rule.key)}
-                              className={`text-[10px] px-2 py-0.5 rounded font-bold transition-all border ${
-                                isInserted
-                                  ? "bg-emerald-500 text-white border-emerald-600"
-                                  : "bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-300"
-                              }`}
-                            >
-                              #{rule.key}
-                            </button>
-                          );
-                        })}
-                      </div>
                     </div>
 
                     <div className="mt-3.5 pt-3.5 border-t border-slate-200/60 pl-7">
@@ -3026,7 +3003,7 @@ export default function App() {
         </div>
 
         {/* 空状態・フッター（ページ全幅） */}
-        {groups.length === 0 && Object.keys(selections).every(key => !isRequired(selections[key])) && (
+        {groups.length === 0 && Object.keys(selections).every(key => !isRequired(selections[key], key)) && (
           <div className="text-center py-10 text-slate-400 font-semibold text-xs border-2 border-dashed border-slate-200 rounded-xl mt-4">
             判定2以上の項目はありません。
             <br />特記は空欄（または支援不要特記）となります。
@@ -3058,9 +3035,18 @@ export default function App() {
             <Download className="w-4 h-4" />
             {exportingExcel ? "Excelを作成中…" : "認定調査票(特記事項)をExcelで出力"}
           </button>
+          <button
+            onClick={handleExportSurveySheet}
+            disabled={exportingSurvey}
+            className="flex-1 bg-sky-700 hover:bg-sky-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-3 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 text-xs transition-all"
+          >
+            <Download className="w-4 h-4" />
+            {exportingSurvey ? "Excelを作成中…" : "調査票（判定一覧）をExcelで出力"}
+          </button>
         </div>
         <p className="text-[10px] text-slate-400 mt-1.5">
           ※様式は元のExcelファイルを再現したものではなく、アップロードされたPDFのレイアウトを参考に本アプリで作成したものです。実際の提出様式と体裁が異なる場合があります。
+          「調査票」の出力は27〜106行目のC列相当の判定文言のみです（1〜26行目の医師意見書欄、D・E列の数式は含みません）。
         </p>
       </main>
     </div>
