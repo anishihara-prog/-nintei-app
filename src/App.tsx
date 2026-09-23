@@ -1662,6 +1662,12 @@ export default function App() {
         setGroupSelectWarning("判定が異なる項目はまとめられません。同じ判定の項目同士のみ選択してください。");
         return prev;
       }
+      const firstCategory = prev.length > 0 ? ASSESSMENT_ITEMS.find(i => i.id === prev[0])?.category : undefined;
+      const category = ASSESSMENT_ITEMS.find(i => i.id === itemId)?.category;
+      if (firstCategory !== undefined && category !== firstCategory) {
+        setGroupSelectWarning("区分（群）をまたいだ項目はまとめられません。同じ区分内の項目同士のみ選択してください。");
+        return prev;
+      }
       setGroupSelectWarning("");
       return [...prev, itemId];
     });
