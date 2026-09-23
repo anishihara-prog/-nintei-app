@@ -15,15 +15,15 @@ const TEMPLATE_URL = "/templates/認定調査票.xlsm";
 
 export type ExportItem = { id: string; category: string; name: string };
 
-type SurveyGroup = { label: string; itemIds: string[] };
+export type SurveyGroup = { label: string; itemIds: string[] };
 
 // 実ファイルの27〜106行目の並び・群分け（実ファイルを直接読み合わせて検証済み）
-const SURVEY_GROUPS: SurveyGroup[] = [
+export const SURVEY_GROUPS: SurveyGroup[] = [
   { label: "起居動作", itemIds: ["1-1", "1-2", "1-3", "1-6", "1-8", "1-5", "1-7"] },
-  { label: "(生活機能等・排泄1)", itemIds: ["1-11", "1-12", "2-1", "2-4", "2-5"] },
-  { label: "生活機能２（移乗・清潔等）", itemIds: ["1-4", "1-9", "2-3", "2-2", "1-10", "2-6"] },
+  { label: "生活機能１（食事・排泄等）", itemIds: ["1-11", "1-12", "2-1", "2-4", "2-5"] },
+  { label: "生活機能２（移動・清潔等）", itemIds: ["1-4", "1-9", "2-3", "2-2", "1-10", "2-6"] },
   { label: "視聴覚機能", itemIds: ["3-1", "3-2"] },
-  { label: "応用動作日常生活", itemIds: ["2-12", "2-13", "2-14", "2-15", "2-16"] },
+  { label: "応用日常生活動作", itemIds: ["2-12", "2-13", "2-14", "2-15", "2-16"] },
   { label: "認知機能", itemIds: ["2-7", "2-8", "2-9", "2-10", "3-5", "2-11", "3-3", "3-4"] },
   {
     label: "行動上の障害（A群）",
