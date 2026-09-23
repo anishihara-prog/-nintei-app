@@ -21,7 +21,10 @@ const SUBJECT_NAME_CELL = { row: 2, col: 12 }; // L2
 
 type SectionLayout = { category: string; dataRowFrom: number; dataRowTo: number };
 
-// 実ファイルの区分ごとの空欄行範囲（実ファイルを直接読み合わせて検証済み）
+// 実ファイルの区分ごとの空欄行範囲（実ファイルを直接読み合わせて検証済み）。
+// 特記事項は大半のケースがこの行数に収まるため、テンプレート自体は元のサイズの
+// ままにしておき、収まらない場合だけ書き出し時にその区分の行を追加する
+// （下のensureSectionCapacity参照）。
 const SECTION_LAYOUT: SectionLayout[] = [
   { category: "1.移動や動作等", dataRowFrom: 5, dataRowTo: 10 },
   { category: "2.日常生活等", dataRowFrom: 12, dataRowTo: 19 },
@@ -112,6 +115,138 @@ function writeDataRow(ws: ExcelJS.Worksheet, row: number, noteRow: NoteRow | und
   }
 }
 
+// -------------------------------------------------------
+// 区分の記入欄が足りない場合に、その場で行を追加する処理。
+// 特記事項は大半のケースが元のテンプレートの行数に収まるため、テンプレート自体は
+// 拡張せず、必要になったときだけ以下の関数で区分の末尾に行を追加する。
+// 追加行には既存の最終行と同じ罫線・ID列プルダウンを設定し、区分ラベル（B列の
+// 縦結合セル）も追加した行数分伸ばす。挿入位置より下にある結合セル・入力規則は
+// すべて下にずらして整合性を保つ。
+// -------------------------------------------------------
+
+const SECTION_ROW_COLS = ["B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"];
+
+function cloneValue<T>(value: T): T {
+  return value === undefined ? value : JSON.parse(JSON.stringify(value));
+}
+
+function captureRowStyle(ws: ExcelJS.Worksheet, row: number): Record<string, any> {
+  const map: Record<string, any> = {};
+  for (const col of SECTION_ROW_COLS) map[col] = cloneValue(ws.getCell(`${col}${row}`).style);
+  return map;
+}
+
+function applyRowStyle(ws: ExcelJS.Worksheet, row: number, styleMap: Record<string, any>, height: number | undefined) {
+  ws.getRow(row).height = height;
+  for (const col of SECTION_ROW_COLS) ws.getCell(`${col}${row}`).style = cloneValue(styleMap[col]);
+}
+
+// 「最終行」の罫線パターン（上=点線／下=実線）から「中間行」用（上下とも点線）を作る
+function deriveMiddleStyle(lastStyle: Record<string, any>): Record<string, any> {
+  const middle: Record<string, any> = {};
+  for (const col of SECTION_ROW_COLS) {
+    const src = cloneValue(lastStyle[col]) || {};
+    if (src.border && src.border.bottom) {
+      src.border = { ...src.border, bottom: { style: "dotted", color: { indexed: 64 } } };
+    }
+    middle[col] = src;
+  }
+  return middle;
+}
+
+function parseAddr(addr: string): { col: string; row: number } {
+  const m = addr.match(/^([A-Z]+)(\d+)$/)!;
+  return { col: m[1], row: parseInt(m[2], 10) };
+}
+
+// spliceRowsは行の値・書式は正しくずらしてくれる（セルの結合関係も実体としては
+// 正しくずれる）が、①データ検証（プルダウン等）は古いアドレスのまま残ってしまい、
+// ②結合セルの衝突チェック用の内部レジストリは古い位置の情報が残ったままになり、
+// 挿入位置以降で新たに結合セルを作ろうとすると誤って「既に結合済み」と判定されて
+// しまう。そこでデータ検証は自前でアドレスをずらし、内部レジストリの古いエントリは
+// （実際のセルの結合関係には影響しないため）挿入位置以降のものを削除して、以降の
+// mergeCells呼び出しをブロックしないようにする。
+function prepareForInsertion(ws: ExcelJS.Worksheet, atRow: number, count: number) {
+  const dv = (ws as any).dataValidations.model as Record<string, any>;
+  const newDv: Record<string, any> = {};
+  for (const [addr, rule] of Object.entries(dv)) {
+    const p = parseAddr(addr);
+    newDv[p.row >= atRow ? `${p.col}${p.row + count}` : addr] = rule;
+  }
+  (ws as any).dataValidations.model = newDv;
+
+  const merges = (ws as any)._merges as Record<string, any>;
+  for (const masterAddr of Object.keys(merges)) {
+    if (parseAddr(masterAddr).row >= atRow) delete merges[masterAddr];
+  }
+}
+
+// 「特記事項」シートの5群直後（本来R38:R42）には、区分の項目とは無関係な別の
+// ドロップダウン（C42/C45）用の値一覧が隠れている。5群の行を追加する際に挿入位置が
+// この一覧の範囲を分断してしまうため、事前に安全な場所（シート末尾より後ろ）へ
+// 値と参照式を移動しておく。upcomingNeedは、これから行う挿入（このシフトの後に
+// 実際にspliceRowsされる行数）を見越して、移動先の参照式を事前に補正するために使う
+// （値自体はspliceRowsによって正しく追従してずれるため、参照式だけ先読みで合わせる）。
+function relocateStrayHelperListIfPresent(ws: ExcelJS.Worksheet, shiftSoFar: number, upcomingNeed: number) {
+  const oldTop = 38 + shiftSoFar;
+  const oldBottom = 42 + shiftSoFar;
+  const oldRangeStr = `$R$${oldTop}:$R$${oldBottom}`;
+  const dv = (ws as any).dataValidations.model as Record<string, any>;
+  const affected = Object.entries(dv).filter(
+    ([, rule]) => rule.type === "list" && rule.formulae && rule.formulae[0] === oldRangeStr
+  );
+  if (affected.length === 0) return;
+
+  const vals: any[] = [];
+  for (let r = oldTop; r <= oldBottom; r++) vals.push(ws.getCell(`R${r}`).value);
+  for (let r = oldTop; r <= oldBottom; r++) ws.getCell(`R${r}`).value = null;
+
+  const safeTop = ws.rowCount + 5;
+  vals.forEach((v, i) => { ws.getCell(`R${safeTop + i}`).value = v; });
+  // 値はこのすぐ後にspliceRowsされる際、upcomingNeed分だけさらに下にずれるため、
+  // 参照式はその最終位置を先読みして設定する。
+  const finalTop = safeTop + upcomingNeed;
+  const newRangeStr = `$R$${finalTop}:$R$${finalTop + vals.length - 1}`;
+  for (const [addr] of affected) {
+    dv[addr] = { ...dv[addr], formulae: [newRangeStr] };
+  }
+}
+
+function ensureSectionCapacity(
+  ws: ExcelJS.Worksheet,
+  headingRow: number,
+  currentLastRow: number,
+  need: number
+): number {
+  const lastStyle = captureRowStyle(ws, currentLastRow);
+  const middleStyle = deriveMiddleStyle(lastStyle);
+  const height = ws.getRow(currentLastRow).height;
+  const idValidation = (ws as any).dataValidations.model[`C${currentLastRow}`];
+
+  const atRow = currentLastRow + 1;
+  const blanks: any[][] = Array.from({ length: need }, () => []);
+  ws.spliceRows(atRow, 0, ...blanks);
+  prepareForInsertion(ws, atRow, need);
+
+  applyRowStyle(ws, currentLastRow, middleStyle, height); // 元の最終行は「中間行」の見た目に変える
+
+  const newLastRow = atRow + need - 1;
+  for (let r = atRow; r <= newLastRow; r++) {
+    applyRowStyle(ws, r, r === newLastRow ? lastStyle : middleStyle, height);
+    ws.mergeCells(`C${r}:D${r}`);
+    ws.mergeCells(`E${r}:M${r}`);
+    if (idValidation) {
+      (ws as any).dataValidations.model[`C${r}`] = cloneValue(idValidation);
+      (ws as any).dataValidations.model[`D${r}`] = cloneValue(idValidation);
+    }
+  }
+
+  ws.unMergeCells(`B${headingRow}:B${currentLastRow}`);
+  ws.mergeCells(`B${headingRow}:B${newLastRow}`);
+
+  return newLastRow;
+}
+
 export async function exportAssessmentToExcel(params: {
   items: ExportItem[];
   selections: Record<string, string>;
@@ -143,26 +278,29 @@ export async function exportAssessmentToExcel(params: {
     ws.getCell(SUBJECT_NAME_CELL.row, SUBJECT_NAME_CELL.col).value = subjectName;
   }
 
-  const overflow: string[] = [];
-
+  // 区分ごとに必要な行数を集計し、テンプレートの記入欄より多い場合はその場で行を追加する。
+  let cumulativeShift = 0;
   for (const section of SECTION_LAYOUT) {
     const categoryItems = items.filter(i => i.category === section.category);
     const rows = buildRows(categoryItems, section.category, selections, editedNotes, groups, baselineByItemId);
 
-    const capacity = section.dataRowTo - section.dataRowFrom + 1;
+    const currentFrom = section.dataRowFrom + cumulativeShift;
+    let currentTo = section.dataRowTo + cumulativeShift;
+    let capacity = currentTo - currentFrom + 1;
+
     if (rows.length > capacity) {
-      overflow.push(`${section.category}（${rows.length}件 / 記入欄${capacity}行）`);
+      const need = rows.length - capacity;
+      if (section.category === "5.特別な医療") {
+        relocateStrayHelperListIfPresent(ws, cumulativeShift, need);
+      }
+      currentTo = ensureSectionCapacity(ws, currentFrom - 1, currentTo, need);
+      cumulativeShift += need;
+      capacity = currentTo - currentFrom + 1;
     }
 
     for (let i = 0; i < capacity; i++) {
-      writeDataRow(ws, section.dataRowFrom + i, rows[i]);
+      writeDataRow(ws, currentFrom + i, rows[i]);
     }
-  }
-
-  if (overflow.length > 0) {
-    window.alert(
-      `様式の記入欄より件数が多いため、一部の特記事項が出力されていません：${overflow.join("、")}`
-    );
   }
 
   const buffer = await wb.xlsx.writeBuffer();
