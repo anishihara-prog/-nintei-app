@@ -1,14 +1,26 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import "dotenv/config";
 import { GoogleGenAI } from "@google/genai";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DIST_DIR = path.join(__dirname, "..", "dist");
+
 const PORT = process.env.PORT || 8787;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+const APP_USERNAME = process.env.APP_USERNAME || "nintei";
+const APP_PASSWORD = process.env.APP_PASSWORD || "";
 
 if (!process.env.GEMINI_API_KEY) {
   console.warn(
     "[server] GEMINI_API_KEY が未設定です。.env に GEMINI_API_KEY=... を設定してください。"
+  );
+}
+if (!APP_PASSWORD) {
+  console.warn(
+    "[server] APP_PASSWORD が未設定のため、認証なしで起動しています（ローカル開発用）。複数人で共有する場合は .env に APP_PASSWORD=... を設定してください。"
   );
 }
 
@@ -17,6 +29,26 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
+
+// 共有サーバー向けの簡易Basic認証。APP_PASSWORD未設定時はローカル開発を
+// 妨げないよう素通しする（本番共有時は必ず設定すること）。
+function basicAuth(req, res, next) {
+  if (!APP_PASSWORD) return next();
+
+  const header = req.headers.authorization || "";
+  const [scheme, encoded] = header.split(" ");
+  if (scheme === "Basic" && encoded) {
+    const decoded = Buffer.from(encoded, "base64").toString("utf8");
+    const sepIndex = decoded.indexOf(":");
+    const user = decoded.slice(0, sepIndex);
+    const pass = decoded.slice(sepIndex + 1);
+    if (user === APP_USERNAME && pass === APP_PASSWORD) return next();
+  }
+  res.set("WWW-Authenticate", 'Basic realm="nintei-app", charset="UTF-8"');
+  res.status(401).send("認証が必要です。");
+}
+
+app.use(basicAuth);
 
 // 「障害支援区分に関するQ&A」「認定調査項目判断基準」（研修資料）より、
 // 特定の項目に限らず全項目に共通する判断の考え方・特記事項の書き方のポイントをまとめたもの。
@@ -546,6 +578,15 @@ app.post("/api/judge/group-suggestions", async (req, res) => {
     console.error("[server] /api/judge/group-suggestions error:", err);
     res.status(500).json({ error: "サーバー内部エラーが発生しました。" });
   }
+});
+
+// ビルド済みフロントエンド（npm run build の出力）を同じポートで配信する。
+// 共有サーバーではこのExpressサーバー1プロセスだけを起動すればよい。
+app.use(express.static(DIST_DIR));
+app.get(/^(?!\/api\/).*/, (req, res, next) => {
+  res.sendFile(path.join(DIST_DIR, "index.html"), (err) => {
+    if (err) next();
+  });
 });
 
 app.listen(PORT, () => {

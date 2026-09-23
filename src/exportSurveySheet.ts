@@ -109,9 +109,10 @@ for (let i = 1; i <= 12; i++) ITEM_OPTION_MAPS[`5-${i}`] = PATTERN_ARINAI;
 export async function exportSurveySheetToExcel(params: {
   items: ExportItem[];
   selections: Record<string, string>;
+  subjectName?: string;
   fileName?: string;
 }) {
-  const { selections, fileName } = params;
+  const { selections, subjectName, fileName } = params;
 
   const res = await fetch(TEMPLATE_URL);
   if (!res.ok) throw new Error(`テンプレートの取得に失敗しました: ${TEMPLATE_URL}`);
@@ -121,6 +122,15 @@ export async function exportSurveySheetToExcel(params: {
   await wb.xlsx.load(originalBuffer);
   const ws = wb.getWorksheet("調査票");
   if (!ws) throw new Error("テンプレートに「調査票」シートが見つかりません");
+
+  // 元テンプレートは「調査票提出用」タブ（値の入っていない印刷用シート）が既定表示に
+  // なっているため、開いたときに記入済みの「調査票」タブが表示されるよう選択状態を移す。
+  // tabSelectedはExcelJSの型定義には無いが、xlsx側は実際にサポートしているプロパティ。
+  const surveySheetIndex = wb.worksheets.findIndex(s => s.name === "調査票");
+  wb.views = [{ activeTab: surveySheetIndex } as ExcelJS.WorkbookView];
+  wb.worksheets.forEach(s => {
+    s.views = [{ ...(s.views[0] || {}), tabSelected: s === ws } as unknown as ExcelJS.WorksheetView];
+  });
 
   let r = SURVEY_START_ROW;
   const unmapped: string[] = [];
@@ -154,7 +164,7 @@ export async function exportSurveySheetToExcel(params: {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = fileName || `認定調査票_記入済み_${Date.now()}.xlsm`;
+  a.download = fileName || (subjectName ? `${subjectName}　認定調査票.xlsm` : `認定調査票_記入済み_${Date.now()}.xlsm`);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

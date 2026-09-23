@@ -172,7 +172,7 @@ export async function exportAssessmentToExcel(params: {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = fileName || `特記事項_記入済み_${Date.now()}.xlsx`;
+  a.download = fileName || (subjectName ? `${subjectName}　特記事項.xlsx` : `特記事項_記入済み_${Date.now()}.xlsx`);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

@@ -10,7 +10,8 @@
     "server": "node server/index.js",
     "dev:all": "concurrently -n vite,api -c blue,green \"npm:dev\" \"npm:server\"",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "node server/index.js"
   },
   "dependencies": {
     "@google/genai": "^1.0.0",
