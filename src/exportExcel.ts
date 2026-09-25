@@ -39,7 +39,7 @@ const isRequired = (status: string | undefined, baseline: string | undefined) =>
 // 複数項目をまとめた場合のIDラベルを作る。同じ群番号（例：1-4,1-5,1-6）なら
 // まとめて1つの括弧にする。4群（行動障害）だけ実ファイルのプルダウン候補が
 // 全角括弧・スペース無し表記のため、区分に応じて書式を切り替える。
-function formatIdLabel(ids: string[], category: string): string {
+export function formatIdLabel(ids: string[], category: string): string {
   const isBehaviorGroup = category === "4.行動障害等";
   const open = isBehaviorGroup ? "（" : "( ";
   const close = isBehaviorGroup ? "）" : " )";
@@ -56,9 +56,9 @@ function formatIdLabel(ids: string[], category: string): string {
   return ids.map(id => `${open}${id}${close}`).join(sep);
 }
 
-type NoteRow = { ids: string[]; label: string; text: string };
+export type NoteRow = { ids: string[]; label: string; text: string };
 
-function buildRows(
+export function buildRows(
   categoryItems: ExportItem[],
   category: string,
   selections: Record<string, string>,

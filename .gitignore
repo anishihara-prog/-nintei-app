@@ -5,3 +5,7 @@ dist/
 vite.config.js
 vite.config.d.ts
 .nintei/
+test-results/
+playwright-report/
+playwright.config.js
+playwright.config.d.ts

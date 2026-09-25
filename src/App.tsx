@@ -31,7 +31,7 @@ const makeG5 = (medName: string, detail: string) =>
 // -------------------------------------------------------
 // 全80調査項目定義
 // -------------------------------------------------------
-const ASSESSMENT_ITEMS = [
+export const ASSESSMENT_ITEMS = [
 
   {
     id: "1-1", category: "1.移動や動作等", name: "1-1 寝返り",
