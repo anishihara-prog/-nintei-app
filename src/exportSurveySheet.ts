@@ -106,6 +106,31 @@ for (let i = 1; i <= 16; i++) ITEM_OPTION_MAPS[`2-${i}`] = PATTERN_3WAY;
 for (let i = 1; i <= 34; i++) ITEM_OPTION_MAPS[`4-${i}`] = PATTERN_FREQ5;
 for (let i = 1; i <= 12; i++) ITEM_OPTION_MAPS[`5-${i}`] = PATTERN_ARINAI;
 
+const OPTIONS_START_COL = 6; // F列（各行の選択肢一覧はF列から始まる。実ファイルを直接確認済み）
+
+// D列には「=MATCH(C列,選択肢範囲,0)」という数式が入っており、選んだ選択肢が
+// 選択肢一覧の何番目かを表す数値を返す。この数値を「調査票提出用」シートのマクロ
+// （Worksheet_Activate内でSheet2.Range("d行番号")を見て、対応する枠を表示する処理）が
+// 参照している。ExcelJSは数式を再計算しないため、C列を書き換えてもD列の
+// キャッシュされた計算結果（result）は古いまま残ってしまい、実際にExcelで開いて
+// 再計算されるかは環境依存で保証できない。そこでC列と同時に、数式はそのまま残しつつ
+// キャッシュされた計算結果だけを正しい値に更新し、「調査票提出用」シートに正しく
+// 反映されるようにする。
+function updateMatchFormulaCache(ws: ExcelJS.Worksheet, row: number, matchedText: string) {
+  const dCell = ws.getCell(row, 4);
+  if (dCell.type !== ExcelJS.ValueType.Formula) return;
+
+  for (let col = OPTIONS_START_COL; col < OPTIONS_START_COL + 20; col++) {
+    const optionText = ws.getCell(row, col).value;
+    if (optionText === matchedText) {
+      const index = col - OPTIONS_START_COL + 1;
+      (dCell as unknown as { _value: { result: number } })._value.result = index;
+      return;
+    }
+    if (optionText === null || optionText === undefined) break;
+  }
+}
+
 export async function exportSurveySheetToExcel(params: {
   items: ExportItem[];
   selections: Record<string, string>;
@@ -144,6 +169,7 @@ export async function exportSurveySheetToExcel(params: {
 
       if (mapped !== undefined) {
         ws.getCell(r, 3).value = mapped;
+        updateMatchFormulaCache(ws, r, mapped);
       }
       r++;
     }

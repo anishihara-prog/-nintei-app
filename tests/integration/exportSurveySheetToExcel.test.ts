@@ -42,6 +42,33 @@ describe("exportSurveySheetToExcel（認定調査票.xlsm）", () => {
     }
   });
 
+  it("D列のキャッシュされた数式結果（MATCH結果）も、選んだ選択肢の位置に正しく更新される", async () => {
+    // D列（=MATCH(C列,選択肢範囲,0)）の計算結果は「調査票提出用」シートのマクロが参照して
+    // 枠の表示切替を行っている。ExcelJSは数式を再計算しないため、C列だけ書き換えても
+    // このキャッシュされた結果が古いままだと「調査票提出用」に反映されない回帰バグがあった。
+    const env = mockBrowserExportEnvironment();
+    try {
+      const selections: Record<string, string> = {};
+      for (const row of reference) {
+        const options = optionsById.get(row.id)!;
+        selections[row.id] = options[1] ?? options[0];
+      }
+
+      await exportSurveySheetToExcel({ items: ASSESSMENT_ITEMS, selections });
+      const wb = await env.getCapturedWorkbook();
+      const ws = wb.getWorksheet("調査票")!;
+
+      for (const row of reference) {
+        const realOpts = row.opts.filter(o => o.trim() !== "");
+        const expectedIndex = realOpts.indexOf(row.opts[1]) + 1; // 1始まり
+        const dCell = ws.getCell(row.r, 4);
+        expect(dCell.result, `${row.id}（${row.name}, row${row.r}）のD列`).toBe(expectedIndex);
+      }
+    } finally {
+      env.restore();
+    }
+  });
+
   it("項目IDと無関係に、選択肢1番目（基準値）でも正しい行に転記される", async () => {
     const env = mockBrowserExportEnvironment();
     try {

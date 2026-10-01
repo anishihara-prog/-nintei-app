@@ -1953,16 +1953,6 @@ export default function App() {
             判定：{status}
           </span>
         </div>
-        {typeof item.template === "function" && (
-          <button
-            onClick={() => handleGenerateDraft(item.id, status, item.template)}
-            disabled={currentText.trim() !== ""}
-            className="mb-1.5 flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-          >
-            <FileText className="w-3 h-3" />
-            下書き生成
-          </button>
-        )}
         <textarea
           rows={2}
           value={currentText}
