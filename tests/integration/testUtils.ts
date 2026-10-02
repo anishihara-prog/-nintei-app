@@ -44,6 +44,10 @@ export function mockBrowserExportEnvironment() {
       await wb.xlsx.load(arrayBuffer);
       return wb;
     },
+    getCapturedBuffer: async (): Promise<ArrayBuffer> => {
+      if (!capturedBlob) throw new Error("Blobがまだ生成されていません（エクスポート関数を先に呼んでください）");
+      return capturedBlob.arrayBuffer();
+    },
     restore: () => {
       global.fetch = originalFetch;
       URL.createObjectURL = originalCreateObjectURL;
