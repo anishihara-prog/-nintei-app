@@ -36,6 +36,19 @@ const SECTION_LAYOUT: SectionLayout[] = [
 const isRequired = (status: string | undefined, baseline: string | undefined) =>
   !!status && status !== baseline;
 
+// 項目IDを番号順（例：1-1, 1-2, ..., 1-10, 1-11）に並べるための比較関数。
+// アプリのUI表示順は実際の調査票の出現順（区分をまたぐ非連番）に合わせているが、
+// 特記事項.xlsxへの出力は区分内で項目番号の昇順に並んでいる方が確認しやすいため、
+// 出力直前にこの順序へ並べ替える。
+export function compareItemIdsNumerically(a: string, b: string): number {
+  const pa = a.match(/^(\d+)-(\d+)$/);
+  const pb = b.match(/^(\d+)-(\d+)$/);
+  if (!pa || !pb) return a.localeCompare(b);
+  const groupDiff = Number(pa[1]) - Number(pb[1]);
+  if (groupDiff !== 0) return groupDiff;
+  return Number(pa[2]) - Number(pb[2]);
+}
+
 // 複数項目をまとめた場合のIDラベルを作る。同じ群番号（例：1-4,1-5,1-6）なら
 // まとめて1つの括弧にする。4群（行動障害）だけ実ファイルのプルダウン候補が
 // 全角括弧・スペース無し表記のため、区分に応じて書式を切り替える。
@@ -281,7 +294,9 @@ export async function exportAssessmentToExcel(params: {
   // 区分ごとに必要な行数を集計し、テンプレートの記入欄より多い場合はその場で行を追加する。
   let cumulativeShift = 0;
   for (const section of SECTION_LAYOUT) {
-    const categoryItems = items.filter(i => i.category === section.category);
+    const categoryItems = items
+      .filter(i => i.category === section.category)
+      .sort((a, b) => compareItemIdsNumerically(a.id, b.id));
     const rows = buildRows(categoryItems, section.category, selections, editedNotes, groups, baselineByItemId);
 
     const currentFrom = section.dataRowFrom + cumulativeShift;

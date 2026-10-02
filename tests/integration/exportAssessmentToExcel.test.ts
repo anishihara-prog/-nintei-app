@@ -53,6 +53,36 @@ describe("exportAssessmentToExcel（特記事項.xlsx）", () => {
     }
   });
 
+  it("区分内の出力順は、UI表示順（調査票の出現順）ではなく項目番号の昇順になる", async () => {
+    // ASSESSMENT_ITEMS（UI表示順）では1群が 1-1,1-2,1-3,1-6,...,1-11,1-12,1-4,... という
+    // 実際の調査票の出現順になっているため、そのまま出力すると1-1,1-11,1-4の順になって
+    // しまう。特記事項.xlsxへの出力は項目番号の昇順（1-1,1-4,1-11）にする。
+    const env = mockBrowserExportEnvironment();
+    try {
+      const selections = { ...BASELINE, "1-1": "2.見守り等", "1-11": "ある", "1-4": "2.見守り等" };
+      const editedNotes = { "1-1": "寝返りの特記。", "1-11": "じょくそうの特記。", "1-4": "移乗の特記。" };
+
+      await exportAssessmentToExcel({
+        items: ASSESSMENT_ITEMS,
+        selections,
+        editedNotes,
+        groups: [],
+        baselineByItemId: BASELINE,
+      });
+      const wb = await env.getCapturedWorkbook();
+      const ws = wb.getWorksheet("特記事項")!;
+
+      expect(ws.getCell(5, 3).value).toBe("( 1-1 )");
+      expect(ws.getCell(5, 5).value).toBe("寝返りの特記。");
+      expect(ws.getCell(6, 3).value).toBe("( 1-4 )");
+      expect(ws.getCell(6, 5).value).toBe("移乗の特記。");
+      expect(ws.getCell(7, 3).value).toBe("( 1-11 )");
+      expect(ws.getCell(7, 5).value).toBe("じょくそうの特記。");
+    } finally {
+      env.restore();
+    }
+  });
+
   it("区分の記入欄を超える件数がある場合、行を動的に追加してすべて出力する（データ欠損なし）", async () => {
     const env = mockBrowserExportEnvironment();
     try {
