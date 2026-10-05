@@ -52,7 +52,8 @@ export function compareItemIdsNumerically(a: string, b: string): number {
 // 複数項目をまとめた場合のIDラベルを作る。同じ群番号（例：1-4,1-5,1-6）なら
 // まとめて1つの括弧にする。4群（行動障害）だけ実ファイルのプルダウン候補が
 // 全角括弧・スペース無し表記のため、区分に応じて書式を切り替える。
-export function formatIdLabel(ids: string[], category: string): string {
+export function formatIdLabel(unsortedIds: string[], category: string): string {
+  const ids = [...unsortedIds].sort(compareItemIdsNumerically);
   const isBehaviorGroup = category === "4.行動障害等";
   const open = isBehaviorGroup ? "（" : "( ";
   const close = isBehaviorGroup ? "）" : " )";
@@ -237,9 +238,29 @@ function ensureSectionCapacity(
   const idValidation = (ws as any).dataValidations.model[`C${currentLastRow}`];
 
   const atRow = currentLastRow + 1;
+  // spliceRowsは挿入位置より下の結合セル（次の区分の見出し・記入欄など）を失うため、
+  // 事前に控えておき、挿入後にずらした位置へ結合し直す。
+  const mergesBelow: string[] = ((ws.model as any).merges as string[]).filter(
+    m => parseAddr(m.split(":")[0]).row >= atRow
+  );
   const blanks: any[][] = Array.from({ length: need }, () => []);
   ws.spliceRows(atRow, 0, ...blanks);
   prepareForInsertion(ws, atRow, need);
+  for (const range of mergesBelow) {
+    const [from, to] = range.split(":");
+    const a = parseAddr(from);
+    const b = parseAddr(to);
+    try {
+      ws.mergeCells(`${a.col}${a.row + need}:${b.col}${b.row + need}`);
+    } catch {
+      // すでに結合済みの場合は何もしない
+    }
+  }
+  const printArea = ws.pageSetup.printArea;
+  const pa = printArea && printArea.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
+  if (pa && parseInt(pa[4], 10) >= atRow) {
+    ws.pageSetup.printArea = `${pa[1]}${pa[2]}:${pa[3]}${parseInt(pa[4], 10) + need}`;
+  }
 
   applyRowStyle(ws, currentLastRow, middleStyle, height); // 元の最終行は「中間行」の見た目に変える
 

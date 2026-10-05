@@ -16,7 +16,7 @@ test.describe("特記事項・調査票のExcel出力", () => {
 
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page.getByRole("button", { name: /認定調査票\(特記事項\)をExcelで出力/ }).click(),
+      page.getByRole("button", { name: /特記事項をExcelで出力/ }).click(),
     ]);
 
     const wb = await downloadWorkbook(download);
@@ -32,7 +32,7 @@ test.describe("特記事項・調査票のExcel出力", () => {
 
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page.getByRole("button", { name: /調査票（判定一覧）をExcelで出力/ }).click(),
+      page.getByRole("button", { name: /認定調査票をExcelで出力/ }).click(),
     ]);
 
     const wb = await downloadWorkbook(download);

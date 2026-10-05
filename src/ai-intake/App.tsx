@@ -3028,20 +3028,20 @@ export default function App() {
             )}
           </button>
           <button
-            onClick={handleExportExcel}
-            disabled={exportingExcel}
-            className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-3 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 text-xs transition-all"
-          >
-            <Download className="w-4 h-4" />
-            {exportingExcel ? "Excelを作成中…" : "認定調査票(特記事項)をExcelで出力"}
-          </button>
-          <button
             onClick={handleExportSurveySheet}
             disabled={exportingSurvey}
             className="flex-1 bg-sky-700 hover:bg-sky-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-3 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 text-xs transition-all"
           >
             <Download className="w-4 h-4" />
-            {exportingSurvey ? "Excelを作成中…" : "調査票（判定一覧）をExcelで出力"}
+            {exportingSurvey ? "Excelを作成中…" : "認定調査票をExcelで出力"}
+          </button>
+          <button
+            onClick={handleExportExcel}
+            disabled={exportingExcel}
+            className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-3 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 text-xs transition-all"
+          >
+            <Download className="w-4 h-4" />
+            {exportingExcel ? "Excelを作成中…" : "特記事項をExcelで出力"}
           </button>
         </div>
         <p className="text-[10px] text-slate-400 mt-1.5">

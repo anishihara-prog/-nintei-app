@@ -28,7 +28,7 @@ test.describe("記入欄の動的な行追加（データ欠損の回帰テス�
 
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page.getByRole("button", { name: /認定調査票\(特記事項\)をExcelで出力/ }).click(),
+      page.getByRole("button", { name: /特記事項をExcelで出力/ }).click(),
     ]);
 
     expect(dialogMessages).toEqual([]); // 記入欄不足のアラートが出ないこと

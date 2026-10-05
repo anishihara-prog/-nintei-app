@@ -7,6 +7,15 @@ import { join } from "path";
 // アプリはlocalStorageに選択状態を保存する（キーはsrc/App.tsxのSTORAGE_KEYS参照）。
 // UIを1つずつクリックする代わりに、状態を直接注入してリロードすることで、
 // テストを高速・安定させる（実際のレンダリング・エクスポート処理は変えず経由させる）。
+// 環境変数 NINTEI_TAB=numeric を付けると「項目ごとに入力(順番通り)」タブで実行する
+// （未指定は既定の「項目ごとに入力(調査票シート順)」）。リロードするとタブが既定に戻るため、
+// リロード後に毎回この関数で切り替える。
+export async function selectConfiguredTab(page: Page) {
+  if (process.env.NINTEI_TAB === "numeric") {
+    await page.getByRole("button", { name: /項目ごとに入力\(順番通り\)/ }).click();
+  }
+}
+
 export async function setAppState(
   page: Page,
   state: {
@@ -30,6 +39,7 @@ export async function setAppState(
     if (s.disabilityGrade !== undefined) localStorage.setItem("manual_disability_grade", JSON.stringify(s.disabilityGrade));
   }, state);
   await page.reload({ waitUntil: "networkidle" });
+  await selectConfiguredTab(page);
 }
 
 export async function clearAppState(page: Page) {

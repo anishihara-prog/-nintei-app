@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-  FileText, Copy, Check, RotateCcw, ClipboardCheck,
+  Check, RotateCcw, ClipboardCheck,
   MessageSquare, Filter, Heart, Info, AlertTriangle, Download
 } from 'lucide-react';
-import { exportAssessmentToExcel } from './exportExcel';
+import { exportAssessmentToExcel, compareItemIdsNumerically } from './exportExcel';
 import { exportSurveySheetToExcel, SURVEY_GROUPS } from './exportSurveySheet';
 
 // -------------------------------------------------------
@@ -1553,14 +1553,13 @@ const saveToStorage = (key: string, value: any) => {
   }
 };
 
-export default function App() {
+export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }) {
   const [selections, setSelections] = useState<Record<string, string>>(() =>
     loadFromStorage(STORAGE_KEYS.selections, { ...INITIAL_SELECTIONS })
   );
   const [editedNotes, setEditedNotes] = useState<Record<string, string>>(() =>
     loadFromStorage(STORAGE_KEYS.editedNotes, {})
   );
-  const [copiedStatus, setCopiedStatus] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("すべて");
 
@@ -1671,7 +1670,9 @@ export default function App() {
 
   const handleCreateGroup = () => {
     if (selectedForGroup.length < 2) return;
-    const text = selectedForGroup
+    // 選択した順ではなく項目番号順（例：4-1,4-2,4-3）でまとめる
+    const sortedIds = [...selectedForGroup].sort(compareItemIdsNumerically);
+    const text = sortedIds
       .map(id => {
         const item = ASSESSMENT_ITEMS.find(i => i.id === id);
         if (!item) return "";
@@ -1680,8 +1681,8 @@ export default function App() {
       .filter(t => t.length > 0)
       .join("");
     const newGroup: NoteGroup = {
-      id: `group-${selectedForGroup.join("_")}`,
-      itemIds: [...selectedForGroup],
+      id: `group-${sortedIds.join("_")}`,
+      itemIds: sortedIds,
       text,
     };
     setGroups(prev => [...prev, newGroup]);
@@ -1696,32 +1697,6 @@ export default function App() {
 
   const handleGroupTextChange = (groupId: string, text: string) => {
     setGroups(prev => prev.map(g => (g.id === groupId ? { ...g, text } : g)));
-  };
-
-  const generateAllSpecialNotes = () => {
-    const individual = ASSESSMENT_ITEMS.map(item => {
-      const status = selections[item.id];
-      if (!isRequired(status, item.id) || groupedItemIds.has(item.id)) return null;
-      return editedNotes[item.id] || "";
-    }).filter((t): t is string => t !== null && t !== "");
-    const grouped = groups.map(g => g.text).filter(t => t.trim() !== "");
-    return [...individual, ...grouped].join("\n");
-  };
-
-  const handleCopyClipboard = () => {
-    const fullText = generateAllSpecialNotes();
-    const ta = document.createElement("textarea");
-    ta.value = fullText;
-    document.body.appendChild(ta);
-    ta.select();
-    try {
-      document.execCommand('copy');
-      setCopiedStatus(true);
-      setTimeout(() => setCopiedStatus(false), 2000);
-    } catch (err) {
-      console.error("コピー失敗", err);
-    }
-    document.body.removeChild(ta);
   };
 
   const [exportingExcel, setExportingExcel] = useState(false);
@@ -1751,6 +1726,7 @@ export default function App() {
       await exportSurveySheetToExcel({
         items: ASSESSMENT_ITEMS,
         selections,
+        subjectName,
       });
     } finally {
       setExportingSurvey(false);
@@ -1987,6 +1963,8 @@ export default function App() {
       selectedForGroup.includes(item.id) || selections[item.id] === groupAnchorStatus;
     return matchesSearch && matchesCategory && matchesGroupFilter;
   });
+  // 「順番通り」タブでは調査票シートの出現順ではなく項目番号の昇順（1-1, 1-2, ...）で表示する
+  if (order === "numeric") filteredItems.sort((a, b) => compareItemIdsNumerically(a.id, b.id));
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 font-sans antialiased">
@@ -1999,13 +1977,13 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-lg font-black tracking-tight flex items-center gap-2">
-                認定調査票 特記事項1行自動作成システム
+                認定調査票 特記事項作成システム
                 <span className="bg-emerald-600 text-[10px] text-white px-2 py-0.5 rounded font-bold">
                   全80項目対応
                 </span>
               </h1>
               <p className="text-[11px] text-slate-400">
-                基本調査①②③全項目対応。特記シートの1マス・1行に収まる特記を作成。
+                基本調査①②③全項目対応。
               </p>
             </div>
           </div>
@@ -2026,7 +2004,7 @@ export default function App() {
         <div className="bg-white rounded-xl p-4 border border-slate-300/80 shadow-sm mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 font-bold text-slate-700">
             <Info className="w-4 h-4 text-slate-500" />
-            <span>【特記1行の書き方】：判定が「2以上」「ある」項目のみ、改行なしの1文形式で「身体理由」「支障」「介護内容」を連結して表示します。</span>
+            <span>【特記書き方】：判定が「2以上」「ある」項目のみ記入。</span>
           </div>
           <span className="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-1 rounded border border-slate-200 shrink-0 font-mono">
             特記シートセル対応：A4縦・フォント10.5pt換算で1行約45文字が目安（内容が多い場合は超過可）
@@ -2035,20 +2013,6 @@ export default function App() {
 
         {/* 提出用1行特記事項プレビュー：ヘッダー・障害等級・AIレビュー（ページ全幅） */}
         <div className="bg-white rounded-xl p-5 border border-slate-300/80 shadow-sm relative overflow-hidden mb-4">
-          <div className="absolute top-0 right-0 bg-slate-900 text-white text-[9px] font-black px-5 py-1 rotate-45 translate-x-4 translate-y-2">
-            1行連動
-          </div>
-
-          <div className="flex items-center gap-2 mb-4 border-b border-slate-200 pb-3">
-            <FileText className="w-5 h-5 text-slate-700" />
-            <div>
-              <h3 className="text-sm font-black text-slate-950">提出用1行特記事項 プレビュー</h3>
-              <p className="text-[10px] text-slate-400">
-                判定が2以上の項目のみ自動連結されます
-              </p>
-            </div>
-          </div>
-
           <div className="p-3 bg-amber-50 rounded-lg border border-amber-300">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
               <div>
@@ -2086,19 +2050,6 @@ export default function App() {
               className="w-full px-2.5 py-1.5 bg-white rounded border border-amber-300 focus:border-amber-500 focus:outline-none text-xs font-bold mb-2"
               placeholder="例：身体障害者手帳2級、療育手帳B、障害支援区分3 など"
             />
-            <button
-              onClick={handleReviewWithAi}
-              disabled={aiReviewLoading}
-              className="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black px-4 py-2 rounded-lg text-xs transition-all"
-            >
-              {aiReviewLoading ? "AIがレビュー中…" : "下の特記事項をAIでレビュー（審査会向けチェック）"}
-            </button>
-            {aiReviewError && (
-              <p className="text-[11px] font-bold text-red-600 mt-1.5">{aiReviewError}</p>
-            )}
-            <p className="text-[10px] text-amber-700 mt-1.5">
-              ※匿名化していない実データは入力しないでください。AIは文章の指摘のみ行い、書き換えは行いません。
-            </p>
           </div>
         </div>
 
@@ -2231,7 +2182,7 @@ export default function App() {
               const owningGroup = groupByItemId.get(item.id);
               const showGroupNote = !shownCategories.has(item.category);
               shownCategories.add(item.category);
-              const surveyGroupLabel = SURVEY_GROUP_LABEL_BY_ITEM_ID[item.id];
+              const surveyGroupLabel = order === "sheet" ? SURVEY_GROUP_LABEL_BY_ITEM_ID[item.id] : undefined;
               const showSurveyGroupHeading = !!surveyGroupLabel && !shownSurveyGroups.has(surveyGroupLabel);
               if (surveyGroupLabel) shownSurveyGroups.add(surveyGroupLabel);
 
@@ -2418,44 +2369,26 @@ export default function App() {
           </div>
         )}
 
-        <div className="mt-5 pt-4 border-t border-slate-200 flex flex-col sm:flex-row gap-2">
-          <button
-            onClick={handleCopyClipboard}
-            className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-black py-3 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 text-xs transition-all"
-          >
-            {copiedStatus ? (
-              <>
-                <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
-                クリップボードへ一括コピー完了！
-              </>
-            ) : (
-              <>
-                <Copy className="w-4 h-4" />
-                表示中の全1行特記事項をまとめてコピーする
-              </>
-            )}
-          </button>
-          <button
-            onClick={handleExportExcel}
-            disabled={exportingExcel}
-            className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-3 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 text-xs transition-all"
-          >
-            <Download className="w-4 h-4" />
-            {exportingExcel ? "Excelを作成中…" : "認定調査票(特記事項)をExcelで出力"}
-          </button>
-          <button
-            onClick={handleExportSurveySheet}
-            disabled={exportingSurvey}
-            className="flex-1 bg-sky-700 hover:bg-sky-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-3 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 text-xs transition-all"
-          >
-            <Download className="w-4 h-4" />
-            {exportingSurvey ? "Excelを作成中…" : "調査票（判定一覧）をExcelで出力"}
-          </button>
+        <div className="sticky bottom-0 z-20 bg-slate-100 border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] mt-5 pt-4 pb-4">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={handleExportSurveySheet}
+              disabled={exportingSurvey}
+              className="flex-1 bg-sky-700 hover:bg-sky-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-3 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 text-xs transition-all"
+            >
+              <Download className="w-4 h-4" />
+              {exportingSurvey ? "Excelを作成中…" : "認定調査票をExcelで出力"}
+            </button>
+            <button
+              onClick={handleExportExcel}
+              disabled={exportingExcel}
+              className="flex-1 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-3 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 text-xs transition-all"
+            >
+              <Download className="w-4 h-4" />
+              {exportingExcel ? "Excelを作成中…" : "特記事項をExcelで出力"}
+            </button>
+          </div>
         </div>
-        <p className="text-[10px] text-slate-400 mt-1.5">
-          ※様式は元のExcelファイルを再現したものではなく、アップロードされたPDFのレイアウトを参考に本アプリで作成したものです。実際の提出様式と体裁が異なる場合があります。
-          「調査票」の出力は27〜106行目のC列相当の判定文言のみです（1〜26行目の医師意見書欄、D・E列の数式は含みません）。
-        </p>
       </main>
     </div>
   );
