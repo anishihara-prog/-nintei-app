@@ -33,6 +33,10 @@ describe("exportAssessmentToExcel（特記事項.xlsx）", () => {
       expect(ws.getRow(6).hidden).toBe(true);
       expect(ws.getCell(2, 2).border.top?.style).toBe("medium");
       expect(ws.getCell(45, 14).border.bottom?.style).toBe("medium");
+      for (let col = 2; col <= 14; col++) {
+        expect(ws.getCell(3, col).border.left).toBeUndefined();
+        expect(ws.getCell(3, col).border.right).toBeUndefined();
+      }
     } finally {
       env.restore();
     }
@@ -132,6 +136,38 @@ describe("exportAssessmentToExcel（特記事項.xlsx）", () => {
         "酸素療法を行っている。",
         "レスピレーターと気管切開の処置を行っている。",
       ]);
+    } finally {
+      env.restore();
+    }
+  });
+
+  it("前の区分で追加行があっても、シフトした「６その他」の記入欄を表示したままにする", async () => {
+    const env = mockBrowserExportEnvironment();
+    try {
+      const overflowingItems = [
+        ...ASSESSMENT_ITEMS.filter(item => item.category === "1.移動や動作等").slice(0, 9),
+        ...ASSESSMENT_ITEMS.filter(item => item.category === "2.日常生活等").slice(0, 10),
+      ];
+      const selections = {
+        ...BASELINE,
+        ...Object.fromEntries(overflowingItems.map(item => [item.id, item.options[1]])),
+      };
+      const editedNotes = Object.fromEntries(overflowingItems.map(item => [item.id, `${item.name}の特記。`]));
+
+      await exportAssessmentToExcel({
+        items: ASSESSMENT_ITEMS,
+        selections,
+        editedNotes,
+        groups: [],
+        baselineByItemId: BASELINE,
+      });
+      const wb = await env.getCapturedWorkbook();
+      const ws = wb.getWorksheet("特記事項")!;
+
+      for (const row of [46, 47, 48]) {
+        expect(ws.getRow(row).hidden).toBe(false);
+        expect(ws.getRow(row).height).toBeGreaterThan(0);
+      }
     } finally {
       env.restore();
     }

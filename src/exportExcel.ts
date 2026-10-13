@@ -18,6 +18,8 @@ const ID_COL_FROM = 3; // C
 const NOTE_COL_FROM = 5; // E
 const SURVEY_DATE_CELL = { row: 2, col: 8 }; // H2（テンプレート側に日本語元号の日付書式が設定済み）
 const SUBJECT_NAME_CELL = { row: 2, col: 12 }; // L2
+const OTHER_SECTION_START_ROW = 41;
+const OTHER_SECTION_ROW_COUNT = 5;
 
 type SectionLayout = { category: string; dataRowFrom: number; dataRowTo: number };
 
@@ -152,14 +154,33 @@ function reinforceTablePerimeter(ws: ExcelJS.Worksheet) {
   if (!bounds) return;
   const firstRow = Number(bounds[1]);
   const lastRow = Number(bounds[2]);
+  const merges = (ws.model as any).merges as string[];
 
   for (let row = firstRow; row <= lastRow; row++) {
+    const intersectsVerticalMerge = merges.some(range => {
+      const [from, to] = range.split(":").map(parseAddr);
+      return from.row < to.row && from.row <= row && to.row >= row;
+    });
+    if (intersectsVerticalMerge) continue;
     setBorderSide(ws.getCell(`B${row}`), "left", "medium");
     setBorderSide(ws.getCell(`N${row}`), "right", "medium");
   }
   for (let col = 2; col <= 14; col++) {
     setBorderSide(ws.getCell(firstRow, col), "top", "medium");
     setBorderSide(ws.getCell(lastRow, col), "bottom", "medium");
+  }
+}
+
+function restoreOtherSectionRows(
+  ws: ExcelJS.Worksheet,
+  shift: number,
+  originalHeights: (number | undefined)[]
+) {
+  // The fixed "6 その他" area is shifted by added rows but must never be hidden with unused note rows.
+  for (let offset = 0; offset < OTHER_SECTION_ROW_COUNT; offset++) {
+    const row = ws.getRow(OTHER_SECTION_START_ROW + shift + offset);
+    row.hidden = false;
+    row.height = originalHeights[offset];
   }
 }
 
@@ -346,6 +367,11 @@ export async function exportAssessmentToExcel(params: {
     ws.getCell(SUBJECT_NAME_CELL.row, SUBJECT_NAME_CELL.col).value = subjectName;
   }
 
+  const otherSectionRowHeights = Array.from(
+    { length: OTHER_SECTION_ROW_COUNT },
+    (_, offset) => ws.getRow(OTHER_SECTION_START_ROW + offset).height
+  );
+
   // 区分ごとに必要な行数を集計し、テンプレートの記入欄より多い場合はその場で行を追加する。
   let cumulativeShift = 0;
   for (const section of SECTION_LAYOUT) {
@@ -373,6 +399,7 @@ export async function exportAssessmentToExcel(params: {
     }
   }
 
+  restoreOtherSectionRows(ws, cumulativeShift, otherSectionRowHeights);
   reinforceTablePerimeter(ws);
 
   const buffer = await wb.xlsx.writeBuffer();
