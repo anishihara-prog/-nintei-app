@@ -5,12 +5,12 @@ import AiIntakeApp from "./ai-intake/App";
 type Mode = "manual" | "numeric" | "ai-intake";
 
 const TABS: { mode: Mode; label: string }[] = [
-  { mode: "manual", label: "項目ごとに入力(調査票シート順)" },
   { mode: "numeric", label: "項目ごとに入力(順番通り)" },
+  { mode: "manual", label: "項目ごとに入力(調査票シート順)" },
 ];
 
 export default function ModeSwitcher() {
-  const [mode, setMode] = useState<Mode>("manual");
+  const [mode, setMode] = useState<Mode>("numeric");
 
   return (
     <div>
