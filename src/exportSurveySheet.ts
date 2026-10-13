@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import { repairXlsmMacro } from "./xlsmMacroRepair";
 
 // -------------------------------------------------------
@@ -44,6 +45,85 @@ export const SURVEY_GROUPS: SurveyGroup[] = [
 ];
 
 const SURVEY_START_ROW = 27;
+const SURVEY_ORGANIZATION = "北区障害者基幹相談支援センター";
+
+const PRINT_HEADER_FIELDS = [
+  { field: "surveyorNumber", row: 3, col: 1 },
+  { field: "organization", row: 3, col: 4 },
+  { field: "subjectName", row: 5, col: 1 },
+  { field: "surveyorNumber", row: 66, col: 1 },
+  { field: "organization", row: 66, col: 3 },
+  { field: "subjectName", row: 68, col: 1 },
+  { field: "surveyorNumber", row: 129, col: 1 },
+  { field: "organization", row: 129, col: 3 },
+  { field: "subjectName", row: 131, col: 1 },
+] as const;
+
+type PrintHeaderField = (typeof PRINT_HEADER_FIELDS)[number]["field"];
+
+function escapeXmlText(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function fillPrintHeaderFields(
+  templateBuffer: ArrayBuffer,
+  values: Record<PrintHeaderField, string>
+): Promise<Uint8Array> {
+  const zip = await JSZip.loadAsync(templateBuffer);
+  const drawingPath = "xl/drawings/drawing1.xml";
+  const drawingFile = zip.file(drawingPath);
+  if (!drawingFile) throw new Error("認定調査票テンプレートの印刷用ヘッダーが見つかりません");
+
+  let drawing = await drawingFile.async("string");
+  const anchors = [...drawing.matchAll(/<xdr:twoCellAnchor\b[^>]*>[\s\S]*?<\/xdr:twoCellAnchor>/g)];
+  const organizationAnchor = anchors.find(([anchor]) => {
+    const from = anchor.match(/<xdr:from>\s*<xdr:col>(\d+)<\/xdr:col>[\s\S]*?<xdr:row>(\d+)<\/xdr:row>/);
+    return from && Number(from[1]) === 4 && Number(from[2]) === 3;
+  })?.[0];
+  const organizationBody = organizationAnchor?.match(/<xdr:txBody>[\s\S]*?<\/xdr:txBody>/)?.[0];
+  if (!organizationBody) throw new Error("認定調査票テンプレートのヘッダー書式を読み取れません");
+
+  const counts: Record<PrintHeaderField, number> = {
+    surveyorNumber: 0,
+    organization: 0,
+    subjectName: 0,
+  };
+
+  drawing = drawing.replace(
+    /<xdr:twoCellAnchor\b[^>]*>[\s\S]*?<\/xdr:twoCellAnchor>/g,
+    anchor => {
+      const from = anchor.match(/<xdr:from>\s*<xdr:col>(\d+)<\/xdr:col>[\s\S]*?<xdr:row>(\d+)<\/xdr:row>/);
+      if (!from) return anchor;
+      const field = PRINT_HEADER_FIELDS.find(
+        candidate => candidate.col === Number(from[1]) && candidate.row === Number(from[2])
+      )?.field;
+      if (!field) return anchor;
+
+      counts[field] += 1;
+      const escapedValue = escapeXmlText(values[field]);
+      const shape = anchor.match(/<xdr:sp\b[\s\S]*?<\/xdr:sp>/)?.[0];
+      if (!shape) throw new Error(`印刷用ヘッダー（${field}）のテキスト枠が見つかりません`);
+
+      let updatedShape: string;
+      if (/<xdr:txBody>[\s\S]*?<\/xdr:txBody>/.test(shape)) {
+        updatedShape = shape.replace(/(<a:t>)[\s\S]*?(<\/a:t>)/, `$1${escapedValue}$2`);
+      } else {
+        const filledBody = organizationBody.replace(/(<a:t>)[\s\S]*?(<\/a:t>)/, `$1${escapedValue}$2`);
+        updatedShape = shape.replace("</xdr:sp>", `${filledBody}</xdr:sp>`);
+      }
+      return anchor.replace(shape, updatedShape);
+    }
+  );
+
+  for (const field of ["surveyorNumber", "organization", "subjectName"] as const) {
+    if (counts[field] !== 3) {
+      throw new Error(`認定調査票の全ページに${field}を設定できませんでした（${counts[field]}/3ページ）`);
+    }
+  }
+
+  zip.file(drawingPath, drawing);
+  return zip.generateAsync({ type: "uint8array" });
+}
 
 // アプリ内の選択肢文言 → 実ファイル（調査票シート）の正式な選択肢文言への対応表
 // （実ファイルのプルダウン文言を直接読み取り、一言一句突き合わせ済み）
@@ -135,13 +215,19 @@ export async function exportSurveySheetToExcel(params: {
   items: ExportItem[];
   selections: Record<string, string>;
   subjectName?: string;
+  surveyorNumber?: string;
   fileName?: string;
 }) {
-  const { selections, subjectName, fileName } = params;
+  const { selections, subjectName, surveyorNumber, fileName } = params;
 
   const res = await fetch(TEMPLATE_URL);
   if (!res.ok) throw new Error(`テンプレートの取得に失敗しました: ${TEMPLATE_URL}`);
   const originalBuffer = await res.arrayBuffer();
+  const templateWithHeader = await fillPrintHeaderFields(originalBuffer, {
+    surveyorNumber: surveyorNumber?.trim() || "",
+    organization: SURVEY_ORGANIZATION,
+    subjectName: subjectName?.trim() || "",
+  });
 
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(originalBuffer);
@@ -182,7 +268,7 @@ export async function exportSurveySheetToExcel(params: {
   }
 
   const filledBuffer = await wb.xlsx.writeBuffer();
-  const finalBuffer = await repairXlsmMacro(filledBuffer, originalBuffer);
+  const finalBuffer = await repairXlsmMacro(filledBuffer, templateWithHeader);
 
   const blob = new Blob([finalBuffer as BlobPart], {
     type: "application/vnd.ms-excel.sheet.macroEnabled.12",

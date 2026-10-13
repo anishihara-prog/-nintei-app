@@ -18,6 +18,7 @@ describe("exportAssessmentToExcel（特記事項.xlsx）", () => {
         editedNotes: { "1-1": "見守りが必要。" },
         groups: [],
         baselineByItemId: BASELINE,
+        surveyDate: "2026-10-13",
         subjectName: "テスト太郎",
       });
       const wb = await env.getCapturedWorkbook();
@@ -27,6 +28,11 @@ describe("exportAssessmentToExcel（特記事項.xlsx）", () => {
       expect(ws.getCell(5, 3).value).toBe("( 1-1 )");
       expect(ws.getCell(5, 5).value).toBe("見守りが必要。");
       expect(ws.getCell(2, 12).value).toBe("テスト太郎"); // 対象者氏名
+      expect((ws.getCell(2, 8).value as Date).toISOString()).toBe("2026-10-13T00:00:00.000Z");
+      expect(ws.getRow(5).height).toBe(17.25); // 1行で収まる特記はテンプレートの余白を詰める
+      expect(ws.getRow(6).hidden).toBe(true);
+      expect(ws.getCell(2, 2).border.top?.style).toBe("medium");
+      expect(ws.getCell(45, 14).border.bottom?.style).toBe("medium");
     } finally {
       env.restore();
     }

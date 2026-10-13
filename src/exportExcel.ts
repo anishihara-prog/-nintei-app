@@ -109,13 +109,21 @@ export function buildRows(
 
 function estimateRowHeightPt(text: string, fontSize: number, charsPerLineAtSize10 = 42): number {
   const charsPerLine = Math.max(10, Math.round((charsPerLineAtSize10 * 10) / fontSize));
-  const lines = Math.max(1, Math.ceil(text.length / charsPerLine));
+  const lines = text
+    .split(/\r?\n/)
+    .reduce((total, line) => total + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
   const lineHeightPt = fontSize * 1.3;
   return Math.max(15, lines * lineHeightPt + 3);
 }
 
 function writeDataRow(ws: ExcelJS.Worksheet, row: number, noteRow: NoteRow | undefined) {
-  if (!noteRow) return; // 未使用行はテンプレートの空欄のまま
+  const outputRow = ws.getRow(row);
+  if (!noteRow) {
+    outputRow.hidden = true;
+    outputRow.height = 0;
+    return;
+  }
+  outputRow.hidden = false;
   const idCell = ws.getCell(row, ID_COL_FROM);
   idCell.value = noteRow.label;
 
@@ -124,8 +132,34 @@ function writeDataRow(ws: ExcelJS.Worksheet, row: number, noteRow: NoteRow | und
   noteCell.alignment = { ...(noteCell.alignment || {}), wrapText: true, vertical: "top" };
 
   const estimated = estimateRowHeightPt(noteRow.text, (noteCell.font && noteCell.font.size) || 10);
-  if (!ws.getRow(row).height || ws.getRow(row).height! < estimated) {
-    ws.getRow(row).height = estimated;
+  outputRow.height = Math.max(17.25, estimated);
+}
+
+function setBorderSide(
+  cell: ExcelJS.Cell,
+  side: "left" | "right" | "top" | "bottom",
+  style: "medium"
+) {
+  cell.border = {
+    ...(cell.border || {}),
+    [side]: { style, color: { indexed: 64 } },
+  };
+}
+
+function reinforceTablePerimeter(ws: ExcelJS.Worksheet) {
+  const printArea = ws.pageSetup.printArea;
+  const bounds = printArea?.match(/^[A-Z]+(\d+):[A-Z]+(\d+)$/);
+  if (!bounds) return;
+  const firstRow = Number(bounds[1]);
+  const lastRow = Number(bounds[2]);
+
+  for (let row = firstRow; row <= lastRow; row++) {
+    setBorderSide(ws.getCell(`B${row}`), "left", "medium");
+    setBorderSide(ws.getCell(`N${row}`), "right", "medium");
+  }
+  for (let col = 2; col <= 14; col++) {
+    setBorderSide(ws.getCell(firstRow, col), "top", "medium");
+    setBorderSide(ws.getCell(lastRow, col), "bottom", "medium");
   }
 }
 
@@ -303,7 +337,7 @@ export async function exportAssessmentToExcel(params: {
   if (!ws) throw new Error("テンプレートに「特記事項」シートが見つかりません");
 
   if (surveyDate) {
-    const d = new Date(`${surveyDate}T00:00:00+09:00`);
+    const d = new Date(`${surveyDate}T00:00:00.000Z`);
     if (!Number.isNaN(d.getTime())) {
       ws.getCell(SURVEY_DATE_CELL.row, SURVEY_DATE_CELL.col).value = d;
     }
@@ -338,6 +372,8 @@ export async function exportAssessmentToExcel(params: {
       writeDataRow(ws, currentFrom + i, rows[i]);
     }
   }
+
+  reinforceTablePerimeter(ws);
 
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], {

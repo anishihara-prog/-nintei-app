@@ -1603,6 +1603,7 @@ const STORAGE_KEYS = {
   disabilityGrade: "ai_intake_disability_grade",
   surveyDate: "ai_intake_survey_date",
   subjectName: "ai_intake_subject_name",
+  surveyorNumber: "ai_intake_surveyor_number",
   aiReviewComments: "ai_intake_ai_review_comments",
   chatRound: "ai_intake_chat_round",
   chatStatus: "ai_intake_chat_status",
@@ -1653,6 +1654,9 @@ export default function App() {
   );
   const [subjectName, setSubjectName] = useState(() =>
     loadFromStorage(STORAGE_KEYS.subjectName, "")
+  );
+  const [surveyorNumber, setSurveyorNumber] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.surveyorNumber, "")
   );
   const [aiReviewLoading, setAiReviewLoading] = useState(false);
   const [aiReviewError, setAiReviewError] = useState("");
@@ -1744,6 +1748,10 @@ export default function App() {
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.subjectName, subjectName);
   }, [subjectName]);
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.surveyorNumber, surveyorNumber);
+  }, [surveyorNumber]);
 
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.aiReviewComments, aiReviewComments);
@@ -2219,6 +2227,8 @@ export default function App() {
       await exportSurveySheetToExcel({
         items: ASSESSMENT_ITEMS,
         selections,
+        subjectName,
+        surveyorNumber,
       });
     } finally {
       setExportingSurvey(false);
@@ -2577,7 +2587,7 @@ export default function App() {
           </div>
 
           <div className="p-3 bg-amber-50 rounded-lg border border-amber-300">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
               <div>
                 <label className="text-[11px] font-black text-amber-900 mb-1 flex items-center gap-1">
                   調査日（Excel出力用・任意）
@@ -2599,6 +2609,18 @@ export default function App() {
                   onChange={e => setSubjectName(e.target.value)}
                   className="w-full px-2.5 py-1.5 bg-white rounded border border-amber-300 focus:border-amber-500 focus:outline-none text-xs font-bold"
                   placeholder="例：山田 太郎"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-black text-amber-900 mb-1 flex items-center gap-1">
+                  調査員No（認定調査票Excel出力用）
+                </label>
+                <input
+                  type="text"
+                  value={surveyorNumber}
+                  onChange={e => setSurveyorNumber(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-white rounded border border-amber-300 focus:border-amber-500 focus:outline-none text-xs font-bold"
+                  placeholder="調査員番号を入力"
                 />
               </div>
             </div>

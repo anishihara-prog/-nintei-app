@@ -88,6 +88,27 @@ describe("exportSurveySheetToExcel（認定調査票.xlsm）", () => {
     }
   });
 
+  it("調査員No・対象者氏名・固定の所属機関名を印刷用3ページすべてに出力する", async () => {
+    const env = mockBrowserExportEnvironment();
+    try {
+      await exportSurveySheetToExcel({
+        items: ASSESSMENT_ITEMS,
+        selections: {},
+        subjectName: "山田 太郎",
+        surveyorNumber: "12345",
+      });
+      const buffer = await env.getCapturedBuffer();
+      const zip = await JSZip.loadAsync(buffer);
+      const drawing = await zip.file("xl/drawings/drawing1.xml")!.async("string");
+
+      expect((drawing.match(/12345/g) || []).length).toBe(3);
+      expect((drawing.match(/山田 太郎/g) || []).length).toBe(3);
+      expect((drawing.match(/北区障害者基幹相談支援センター/g) || []).length).toBe(3);
+    } finally {
+      env.restore();
+    }
+  });
+
   it("各シートのcodeNameが、ExcelJSの書き出しを経ても失われない", async () => {
     // ExcelJSは書き出し時に各シートのcodeName（<sheetPr codeName="Sheet2"/>等）を
     // 失ってしまう回帰バグがあった。codeNameが無いと、VBAコード内の

@@ -1531,6 +1531,7 @@ const STORAGE_KEYS = {
   aiReviewComments: "manual_ai_review_comments",
   surveyDate: "manual_survey_date",
   subjectName: "manual_subject_name",
+  surveyorNumber: "manual_surveyor_number",
 };
 
 // ローカルストレージからデータを取得する関数
@@ -1572,6 +1573,9 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
   const [subjectName, setSubjectName] = useState(() =>
     loadFromStorage(STORAGE_KEYS.subjectName, "")
   );
+  const [surveyorNumber, setSurveyorNumber] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.surveyorNumber, "")
+  );
   const [aiReviewLoading, setAiReviewLoading] = useState(false);
   const [aiReviewError, setAiReviewError] = useState("");
   const [aiReviewComments, setAiReviewComments] = useState<Record<string, AiReviewComment>>(() =>
@@ -1604,6 +1608,10 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.subjectName, subjectName);
   }, [subjectName]);
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.surveyorNumber, surveyorNumber);
+  }, [surveyorNumber]);
 
   useEffect(() => {
     saveToStorage(STORAGE_KEYS.groups, groups);
@@ -1727,6 +1735,7 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
         items: ASSESSMENT_ITEMS,
         selections,
         subjectName,
+        surveyorNumber,
       });
     } finally {
       setExportingSurvey(false);
@@ -2014,7 +2023,7 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
         {/* 提出用1行特記事項プレビュー：ヘッダー・障害等級・AIレビュー（ページ全幅） */}
         <div className="bg-white rounded-xl p-5 border border-slate-300/80 shadow-sm relative overflow-hidden mb-4">
           <div className="p-3 bg-amber-50 rounded-lg border border-amber-300">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
               <div>
                 <label className="text-[11px] font-black text-amber-900 mb-1 flex items-center gap-1">
                   調査日（Excel出力用・任意）
@@ -2036,6 +2045,18 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
                   onChange={e => setSubjectName(e.target.value)}
                   className="w-full px-2.5 py-1.5 bg-white rounded border border-amber-300 focus:border-amber-500 focus:outline-none text-xs font-bold"
                   placeholder="例：山田 太郎"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-black text-amber-900 mb-1 flex items-center gap-1">
+                  調査員No（認定調査票Excel出力用）
+                </label>
+                <input
+                  type="text"
+                  value={surveyorNumber}
+                  onChange={e => setSurveyorNumber(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-white rounded border border-amber-300 focus:border-amber-500 focus:outline-none text-xs font-bold"
+                  placeholder="調査員番号を入力"
                 />
               </div>
             </div>
