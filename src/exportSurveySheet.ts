@@ -65,6 +65,15 @@ function escapeXmlText(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+function setTextBodyFontSize(textBody: string, fontSize: number): string {
+  return textBody.replace(/<a:(?:rPr|defRPr)\b[^>]*>/g, runProperties => {
+    const sizeAttribute = `sz="${fontSize}"`;
+    return /\bsz="[^"]*"/.test(runProperties)
+      ? runProperties.replace(/\bsz="[^"]*"/, sizeAttribute)
+      : runProperties.replace(/>$/, ` ${sizeAttribute}>`);
+  });
+}
+
 async function fillPrintHeaderFields(
   templateBuffer: ArrayBuffer,
   values: Record<PrintHeaderField, string>
@@ -82,6 +91,7 @@ async function fillPrintHeaderFields(
   })?.[0];
   const organizationBody = organizationAnchor?.match(/<xdr:txBody>[\s\S]*?<\/xdr:txBody>/)?.[0];
   if (!organizationBody) throw new Error("認定調査票テンプレートのヘッダー書式を読み取れません");
+  const formattedOrganizationBody = setTextBodyFontSize(organizationBody, 1000);
 
   const counts: Record<PrintHeaderField, number> = {
     surveyorNumber: 0,
@@ -107,8 +117,15 @@ async function fillPrintHeaderFields(
       let updatedShape: string;
       if (/<xdr:txBody>[\s\S]*?<\/xdr:txBody>/.test(shape)) {
         updatedShape = shape.replace(/(<a:t>)[\s\S]*?(<\/a:t>)/, `$1${escapedValue}$2`);
+        if (field === "organization") {
+          updatedShape = updatedShape.replace(
+            /<xdr:txBody>[\s\S]*?<\/xdr:txBody>/,
+            textBody => setTextBodyFontSize(textBody, 1000)
+          );
+        }
       } else {
-        const filledBody = organizationBody.replace(/(<a:t>)[\s\S]*?(<\/a:t>)/, `$1${escapedValue}$2`);
+        const sourceBody = field === "organization" ? formattedOrganizationBody : organizationBody;
+        const filledBody = sourceBody.replace(/(<a:t>)[\s\S]*?(<\/a:t>)/, `$1${escapedValue}$2`);
         updatedShape = shape.replace("</xdr:sp>", `${filledBody}</xdr:sp>`);
       }
       return anchor.replace(shape, updatedShape);

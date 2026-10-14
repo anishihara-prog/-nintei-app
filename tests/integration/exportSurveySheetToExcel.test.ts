@@ -104,6 +104,12 @@ describe("exportSurveySheetToExcel（認定調査票.xlsm）", () => {
       expect((drawing.match(/12345/g) || []).length).toBe(3);
       expect((drawing.match(/山田 太郎/g) || []).length).toBe(3);
       expect((drawing.match(/北区障害者基幹相談支援センター/g) || []).length).toBe(3);
+      const organizationAnchors = (drawing.match(/<xdr:twoCellAnchor\b[^>]*>[\s\S]*?<\/xdr:twoCellAnchor>/g) || [])
+        .filter(anchor => anchor.includes("北区障害者基幹相談支援センター"));
+      expect(organizationAnchors).toHaveLength(3);
+      for (const anchor of organizationAnchors) {
+        expect(anchor).toMatch(/<a:rPr\b[^>]*\bsz="1000"/);
+      }
     } finally {
       env.restore();
     }
