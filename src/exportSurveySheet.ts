@@ -46,6 +46,9 @@ export const SURVEY_GROUPS: SurveyGroup[] = [
 
 const SURVEY_START_ROW = 27;
 const SURVEY_ORGANIZATION = "北区障害者基幹相談支援センター";
+const ORGANIZATION_TEXT_BOX_EXTRA_WIDTH_EMU = 280_000;
+// The print sheet uses Excel's default column width of 64 px.
+const TEMPLATE_DEFAULT_COLUMN_WIDTH_EMU = 609_600;
 
 const PRINT_HEADER_FIELDS = [
   { field: "surveyorNumber", row: 3, col: 1 },
@@ -72,6 +75,31 @@ function setTextBodyFontSize(textBody: string, fontSize: number): string {
       ? runProperties.replace(/\bsz="[^"]*"/, sizeAttribute)
       : runProperties.replace(/>$/, ` ${sizeAttribute}>`);
   });
+}
+
+function expandShapeRight(anchor: string, extraWidthEmu: number): string {
+  const marker = anchor.match(
+    /<xdr:to>([\s\S]*?)<xdr:col>(\d+)<\/xdr:col><xdr:colOff>(\d+)<\/xdr:colOff>([\s\S]*?)<\/xdr:to>/
+  );
+  const shapeWidth = anchor.match(/(<a:xfrm>[\s\S]*?<a:ext cx=")(\d+)(" cy="[^"]*"\/>)/);
+  if (!marker || !shapeWidth) throw new Error("所属機関のテキストボックス幅を読み取れません");
+
+  let col = Number(marker[2]);
+  let colOff = Number(marker[3]) + extraWidthEmu;
+  while (colOff >= TEMPLATE_DEFAULT_COLUMN_WIDTH_EMU) {
+    colOff -= TEMPLATE_DEFAULT_COLUMN_WIDTH_EMU;
+    col += 1;
+  }
+
+  return anchor
+    .replace(
+      marker[0],
+      `<xdr:to>${marker[1]}<xdr:col>${col}</xdr:col><xdr:colOff>${colOff}</xdr:colOff>${marker[4]}</xdr:to>`
+    )
+    .replace(
+      shapeWidth[0],
+      `${shapeWidth[1]}${Number(shapeWidth[2]) + extraWidthEmu}${shapeWidth[3]}`
+    );
 }
 
 async function fillPrintHeaderFields(
@@ -128,7 +156,10 @@ async function fillPrintHeaderFields(
         const filledBody = sourceBody.replace(/(<a:t>)[\s\S]*?(<\/a:t>)/, `$1${escapedValue}$2`);
         updatedShape = shape.replace("</xdr:sp>", `${filledBody}</xdr:sp>`);
       }
-      return anchor.replace(shape, updatedShape);
+      const updatedAnchor = anchor.replace(shape, updatedShape);
+      return field === "organization"
+        ? expandShapeRight(updatedAnchor, ORGANIZATION_TEXT_BOX_EXTRA_WIDTH_EMU)
+        : updatedAnchor;
     }
   );
 

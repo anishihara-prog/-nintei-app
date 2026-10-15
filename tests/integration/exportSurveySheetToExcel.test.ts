@@ -110,6 +110,15 @@ describe("exportSurveySheetToExcel（認定調査票.xlsm）", () => {
       for (const anchor of organizationAnchors) {
         expect(anchor).toMatch(/<a:rPr\b[^>]*\bsz="1000"/);
       }
+      expect(
+        organizationAnchors.map(anchor => Number(anchor.match(/<a:ext cx="(\d+)"/)?.[1]))
+      ).toEqual([1933540, 1925920, 1925920]);
+      expect(
+        organizationAnchors.map(anchor => {
+          const toMarker = anchor.match(/<xdr:to><xdr:col>(\d+)<\/xdr:col><xdr:colOff>(\d+)/);
+          return toMarker && [Number(toMarker[1]), Number(toMarker[2])];
+        })
+      ).toEqual([[7, 168017], [7, 24462], [7, 50922]]);
     } finally {
       env.restore();
     }
