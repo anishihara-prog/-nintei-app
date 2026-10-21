@@ -47,6 +47,7 @@ export const SURVEY_GROUPS: SurveyGroup[] = [
 const SURVEY_START_ROW = 27;
 const SURVEY_ORGANIZATION = "北区障害者基幹相談支援センター";
 const ORGANIZATION_TEXT_BOX_EXTRA_WIDTH_EMU = 280_000;
+const ORGANIZATION_TEXT_BOX_SHIFT_RIGHT_EMU = 95_250; // 約10px
 // The print sheet uses Excel's default column width of 64 px.
 const TEMPLATE_DEFAULT_COLUMN_WIDTH_EMU = 609_600;
 
@@ -77,29 +78,34 @@ function setTextBodyFontSize(textBody: string, fontSize: number): string {
   });
 }
 
-function expandShapeRight(anchor: string, extraWidthEmu: number): string {
-  const marker = anchor.match(
-    /<xdr:to>([\s\S]*?)<xdr:col>(\d+)<\/xdr:col><xdr:colOff>(\d+)<\/xdr:colOff>([\s\S]*?)<\/xdr:to>/
+function shiftAnchorMarkerRight(anchor: string, tag: "from" | "to", dxEmu: number): string {
+  return anchor.replace(
+    new RegExp(`(<xdr:${tag}>\\s*<xdr:col>)(\\d+)(</xdr:col>\\s*<xdr:colOff>)(\\d+)(</xdr:colOff>)`),
+    (_match, head: string, col: string, mid: string, off: string, tail: string) => {
+      let nextCol = Number(col);
+      let nextOff = Number(off) + dxEmu;
+      while (nextOff >= TEMPLATE_DEFAULT_COLUMN_WIDTH_EMU) {
+        nextOff -= TEMPLATE_DEFAULT_COLUMN_WIDTH_EMU;
+        nextCol += 1;
+      }
+      return `${head}${nextCol}${mid}${nextOff}${tail}`;
+    }
   );
-  const shapeWidth = anchor.match(/(<a:xfrm>[\s\S]*?<a:ext cx=")(\d+)(" cy="[^"]*"\/>)/);
-  if (!marker || !shapeWidth) throw new Error("所属機関のテキストボックス幅を読み取れません");
+}
 
-  let col = Number(marker[2]);
-  let colOff = Number(marker[3]) + extraWidthEmu;
-  while (colOff >= TEMPLATE_DEFAULT_COLUMN_WIDTH_EMU) {
-    colOff -= TEMPLATE_DEFAULT_COLUMN_WIDTH_EMU;
-    col += 1;
-  }
+// 右端を広げた上で、全体を右へ動かす（枠線・塗りの無いテキストボックスなので文字位置だけが変わる）
+function adjustOrganizationBox(anchor: string, extraWidthEmu: number, shiftRightEmu: number): string {
+  const xfrm = anchor.match(/<a:off x="(\d+)"([^>]*)\/>\s*<a:ext cx="(\d+)"/);
+  if (!xfrm) throw new Error("所属機関のテキストボックス幅を読み取れません");
 
-  return anchor
-    .replace(
-      marker[0],
-      `<xdr:to>${marker[1]}<xdr:col>${col}</xdr:col><xdr:colOff>${colOff}</xdr:colOff>${marker[4]}</xdr:to>`
-    )
-    .replace(
-      shapeWidth[0],
-      `${shapeWidth[1]}${Number(shapeWidth[2]) + extraWidthEmu}${shapeWidth[3]}`
-    );
+  let adjusted = shiftAnchorMarkerRight(anchor, "from", shiftRightEmu);
+  adjusted = shiftAnchorMarkerRight(adjusted, "to", shiftRightEmu + extraWidthEmu);
+  return adjusted.replace(
+    xfrm[0],
+    xfrm[0]
+      .replace(`<a:off x="${xfrm[1]}"`, `<a:off x="${Number(xfrm[1]) + shiftRightEmu}"`)
+      .replace(`<a:ext cx="${xfrm[3]}"`, `<a:ext cx="${Number(xfrm[3]) + extraWidthEmu}"`)
+  );
 }
 
 async function fillPrintHeaderFields(
@@ -158,7 +164,11 @@ async function fillPrintHeaderFields(
       }
       const updatedAnchor = anchor.replace(shape, updatedShape);
       return field === "organization"
-        ? expandShapeRight(updatedAnchor, ORGANIZATION_TEXT_BOX_EXTRA_WIDTH_EMU)
+        ? adjustOrganizationBox(
+            updatedAnchor,
+            ORGANIZATION_TEXT_BOX_EXTRA_WIDTH_EMU,
+            ORGANIZATION_TEXT_BOX_SHIFT_RIGHT_EMU
+          )
         : updatedAnchor;
     }
   );

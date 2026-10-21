@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 
-// ExcelJSで.xlsmを読み込んで書き出すと、以下の3つが失われる：
+// ExcelJSで.xlsmを読み込んで書き出すと、以下の4つが失われる・壊れる：
 // ①xl/vbaProject.binとそれを参照する[Content_Types].xml・
 //   xl/_rels/workbook.xml.relsのエントリ（マクロ無しの.xlsxと同等の中身になる）
 // ②図形（オートシェイプ。例：四角形）の定義。埋め込み画像は保持されるが、
@@ -14,6 +14,10 @@ import JSZip from "jszip";
 //   さらにExcelJSは書き出し時にシートのファイル名も振り直す（例：sheet2.xml→
 //   sheet24.xml）ため、ファイル名ではなくシート名（workbook.xmlのname属性）を
 //   手がかりに元ファイルと対応付けてcodeNameを復元する。
+// ④複数セルで共有される相対参照の入力規則（プルダウン）。「調査票」シートのC列は
+//   C27:C33に対するF5:I5のように範囲全体で1つの定義を共有しているが、ExcelJSは
+//   セルごとに分割し参照も同じ文字列のまま書き出すため、各行の選択肢とずれてしまう。
+//   元ファイルのdataValidationsをそのまま復元する。
 // 元ファイルのvbaProject.bin・関連エントリ・図形定義・各シートのcodeNameを
 // 書き出し後のzipに再注入し、マクロが正しく動く状態に復元する。
 
@@ -108,12 +112,26 @@ export async function repairXlsmMacro(
   const origSheetsByName = await getSheetXmlByName(origZip);
   const newSheetsByName = await getSheetXmlByName(newZip);
   for (const [name, { path, xml }] of newSheetsByName) {
-    const codeName = origSheetsByName.get(name)?.xml.match(/<sheetPr\b[^>]*\bcodeName="([^"]*)"/)?.[1];
-    if (!codeName || /codeName="/.test(xml)) continue;
-    const patched = /<sheetPr\b/.test(xml)
-      ? xml.replace(/<sheetPr\b/, `<sheetPr codeName="${codeName}"`)
-      : xml.replace(/(<worksheet\b[^>]*>)/, `$1<sheetPr codeName="${codeName}"/>`);
-    newZip.file(path, patched);
+    const origXml = origSheetsByName.get(name)?.xml;
+    let patched = xml;
+
+    const codeName = origXml?.match(/<sheetPr\b[^>]*\bcodeName="([^"]*)"/)?.[1];
+    if (codeName && !/codeName="/.test(patched)) {
+      patched = /<sheetPr\b/.test(patched)
+        ? patched.replace(/<sheetPr\b/, `<sheetPr codeName="${codeName}"`)
+        : patched.replace(/(<worksheet\b[^>]*>)/, `$1<sheetPr codeName="${codeName}"/>`);
+    }
+
+    // ExcelJSは複数セルで共有される相対参照のプルダウン（例：C27:C33に対するF5:I5）を
+    // セルごとに分割して同じ参照のまま書き出すため、各行の選択肢とずれてしまう。
+    // 元ファイルの入力規則をそのまま復元する（xr:uidは名前空間宣言が無いので除く）。
+    const origValidations = origXml?.match(/<dataValidations\b[\s\S]*?<\/dataValidations>/)?.[0];
+    if (origValidations && /<dataValidations\b/.test(patched)) {
+      const cleaned = origValidations.replace(/\s+xr:uid="[^"]*"/g, "");
+      patched = patched.replace(/<dataValidations\b[\s\S]*?<\/dataValidations>/, () => cleaned);
+    }
+
+    if (patched !== xml) newZip.file(path, patched);
   }
 
   return newZip.generateAsync({ type: "uint8array" });

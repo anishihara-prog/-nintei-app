@@ -118,7 +118,40 @@ describe("exportSurveySheetToExcel（認定調査票.xlsm）", () => {
           const toMarker = anchor.match(/<xdr:to><xdr:col>(\d+)<\/xdr:col><xdr:colOff>(\d+)/);
           return toMarker && [Number(toMarker[1]), Number(toMarker[2])];
         })
-      ).toEqual([[7, 168017], [7, 24462], [7, 50922]]);
+      ).toEqual([[7, 263267], [7, 119712], [7, 146172]]);
+      expect(
+        organizationAnchors.map(anchor => {
+          const fromMarker = anchor.match(/<xdr:from><xdr:col>(\d+)<\/xdr:col><xdr:colOff>(\d+)/);
+          return fromMarker && [Number(fromMarker[1]), Number(fromMarker[2])];
+        })
+      ).toEqual([[4, 102870], [4, 52821], [4, 60441]]);
+    } finally {
+      env.restore();
+    }
+  });
+
+  it("調査票シートC列のプルダウン（相対参照の入力規則）が、元テンプレートと同じ定義で残る", async () => {
+    // ExcelJSは複数セルで共有される入力規則（例：C27:C33に対するF5:I5の相対参照）をセルごとに
+    // 分割し、参照も基準セルのまま書き出すため、C列のプルダウンが各行のF列以降の選択肢と
+    // 食い違う回帰バグがあった。
+    const env = mockBrowserExportEnvironment();
+    try {
+      await exportSurveySheetToExcel({ items: ASSESSMENT_ITEMS, selections: {} });
+      const zip = await JSZip.loadAsync(await env.getCapturedBuffer());
+      const original = await JSZip.loadAsync(
+        readFileSync(join(__dirname, "../../public/templates/認定調査票.xlsm"))
+      );
+      const strip = (xml: string) =>
+        (xml.match(/<dataValidations\b[\s\S]*?<\/dataValidations>/)?.[0] ?? "").replace(/\s+xr:uid="[^"]*"/g, "");
+
+      const sheetFiles = zip.file(/^xl\/worksheets\/sheet\d+\.xml$/);
+      const surveyXml = (await Promise.all(sheetFiles.map(f => f.async("string")))).find(
+        x => x.includes('sqref="C27:C33"') || x.includes("C27:C33")
+      );
+      expect(surveyXml).toBeDefined();
+      const originalXml = await original.file("xl/worksheets/sheet2.xml")!.async("string");
+      expect(strip(surveyXml!)).toBe(strip(originalXml));
+      expect(strip(surveyXml!)).toContain("<formula1>F5:I5</formula1>");
     } finally {
       env.restore();
     }
