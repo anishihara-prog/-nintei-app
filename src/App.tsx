@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Check, RotateCcw, ClipboardCheck,
   MessageSquare, Filter, Heart, Info, AlertTriangle, Download
@@ -1676,6 +1676,19 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
     });
   };
 
+  const scrollToGroupIdRef = useRef<string | null>(null);
+
+  // グループ作成直後に、まとめた特記の入力欄へスクロールしてフォーカスする
+  useEffect(() => {
+    const groupId = scrollToGroupIdRef.current;
+    if (!groupId) return;
+    const textarea = document.querySelector<HTMLTextAreaElement>(`textarea[data-group-id="${groupId}"]`);
+    if (!textarea) return;
+    scrollToGroupIdRef.current = null;
+    textarea.scrollIntoView({ behavior: "smooth", block: "center" });
+    textarea.focus({ preventScroll: true });
+  }, [groups]);
+
   const handleCreateGroup = () => {
     if (selectedForGroup.length < 2) return;
     // 選択した順ではなく項目番号順（例：4-1,4-2,4-3）でまとめる
@@ -1694,6 +1707,7 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
       text,
     };
     setGroups(prev => [...prev, newGroup]);
+    scrollToGroupIdRef.current = newGroup.id;
     setSelectedForGroup([]);
     setGroupSelectWarning("");
     setShowOnlyGroupCandidates(false);
@@ -1903,6 +1917,7 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
           </div>
           <textarea
             rows={3}
+            data-group-id={owningGroup.id}
             value={owningGroup.text}
             onChange={e => handleGroupTextChange(owningGroup.id, e.target.value)}
             className="w-full px-2.5 py-1.5 bg-white rounded border border-indigo-300 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y min-h-[60px] leading-relaxed"
