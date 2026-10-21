@@ -49,8 +49,8 @@ const SURVEY_ORGANIZATION = "北区障害者基幹相談支援センター";
 const ORGANIZATION_TEXT_BOX_EXTRA_WIDTH_EMU = 280_000;
 // 背景画像の枠を実測すると、1ページ目（5行目）の所属機関欄だけ他ページより狭く、
 // 10pt・16文字の文字列がほぼ枠幅いっぱいになる。右へ寄せると枠線を越えるため、
-// 1ページ目は左へ寄せる（10pt全角2文字分=約254,000EMUを追加で左へ）。
-const ORGANIZATION_TEXT_BOX_SHIFT_EMU_BY_ROW: Record<number, number> = { 3: -289_000 };
+// 1ページ目は左端の仕切り線のすぐ右から文字が始まるよう少し左へ寄せる。
+const ORGANIZATION_TEXT_BOX_SHIFT_EMU_BY_ROW: Record<number, number> = { 3: -35_000 };
 // The print sheet uses Excel's default column width of 64 px.
 const TEMPLATE_DEFAULT_COLUMN_WIDTH_EMU = 609_600;
 
