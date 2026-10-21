@@ -47,7 +47,10 @@ export const SURVEY_GROUPS: SurveyGroup[] = [
 const SURVEY_START_ROW = 27;
 const SURVEY_ORGANIZATION = "北区障害者基幹相談支援センター";
 const ORGANIZATION_TEXT_BOX_EXTRA_WIDTH_EMU = 280_000;
-const ORGANIZATION_TEXT_BOX_SHIFT_RIGHT_EMU = 95_250; // 約10px
+// 背景画像の枠を実測すると、1ページ目（5行目）の所属機関欄だけ他ページより狭く、
+// 10pt・16文字の文字列がほぼ枠幅いっぱいになる。右へ寄せると枠線を越えるため、
+// 1ページ目は左端の仕切り線のすぐ右から文字が始まるよう少し左へ寄せる。
+const ORGANIZATION_TEXT_BOX_SHIFT_EMU_BY_ROW: Record<number, number> = { 3: -35_000 };
 // The print sheet uses Excel's default column width of 64 px.
 const TEMPLATE_DEFAULT_COLUMN_WIDTH_EMU = 609_600;
 
@@ -88,22 +91,26 @@ function shiftAnchorMarkerRight(anchor: string, tag: "from" | "to", dxEmu: numbe
         nextOff -= TEMPLATE_DEFAULT_COLUMN_WIDTH_EMU;
         nextCol += 1;
       }
+      while (nextOff < 0) {
+        nextOff += TEMPLATE_DEFAULT_COLUMN_WIDTH_EMU;
+        nextCol -= 1;
+      }
       return `${head}${nextCol}${mid}${nextOff}${tail}`;
     }
   );
 }
 
-// 右端を広げた上で、全体を右へ動かす（枠線・塗りの無いテキストボックスなので文字位置だけが変わる）
-function adjustOrganizationBox(anchor: string, extraWidthEmu: number, shiftRightEmu: number): string {
+// 右端を広げた上で、全体を左右に動かす（枠線・塗りの無いテキストボックスなので文字位置だけが変わる）
+function adjustOrganizationBox(anchor: string, extraWidthEmu: number, shiftEmu: number): string {
   const xfrm = anchor.match(/<a:off x="(\d+)"([^>]*)\/>\s*<a:ext cx="(\d+)"/);
   if (!xfrm) throw new Error("所属機関のテキストボックス幅を読み取れません");
 
-  let adjusted = shiftAnchorMarkerRight(anchor, "from", shiftRightEmu);
-  adjusted = shiftAnchorMarkerRight(adjusted, "to", shiftRightEmu + extraWidthEmu);
+  let adjusted = shiftAnchorMarkerRight(anchor, "from", shiftEmu);
+  adjusted = shiftAnchorMarkerRight(adjusted, "to", shiftEmu + extraWidthEmu);
   return adjusted.replace(
     xfrm[0],
     xfrm[0]
-      .replace(`<a:off x="${xfrm[1]}"`, `<a:off x="${Number(xfrm[1]) + shiftRightEmu}"`)
+      .replace(`<a:off x="${xfrm[1]}"`, `<a:off x="${Number(xfrm[1]) + shiftEmu}"`)
       .replace(`<a:ext cx="${xfrm[3]}"`, `<a:ext cx="${Number(xfrm[3]) + extraWidthEmu}"`)
   );
 }
@@ -167,7 +174,7 @@ async function fillPrintHeaderFields(
         ? adjustOrganizationBox(
             updatedAnchor,
             ORGANIZATION_TEXT_BOX_EXTRA_WIDTH_EMU,
-            ORGANIZATION_TEXT_BOX_SHIFT_RIGHT_EMU
+            ORGANIZATION_TEXT_BOX_SHIFT_EMU_BY_ROW[Number(from[2])] ?? 0
           )
         : updatedAnchor;
     }
