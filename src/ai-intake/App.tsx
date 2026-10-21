@@ -2243,6 +2243,9 @@ export default function App() {
     setJudgeError("");
     setHasJudged(false);
     setDisabilityGrade("");
+    setSurveyDate("");
+    setSubjectName("");
+    setSurveyorNumber("");
     setAiReviewError("");
     setAiReviewComments({});
     setSelectedForGroup([]);

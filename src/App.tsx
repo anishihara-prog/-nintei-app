@@ -1746,6 +1746,9 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
     setSelections({ ...INITIAL_SELECTIONS });
     setEditedNotes({});
     setDisabilityGrade("");
+    setSurveyDate("");
+    setSubjectName("");
+    setSurveyorNumber("");
     setGroups([]);
     setSelectedForGroup([]);
     setAiReviewComments({});
