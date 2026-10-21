@@ -25,7 +25,8 @@ type SectionLayout = { category: string; dataRowFrom: number; dataRowTo: number 
 
 // 実ファイルの区分ごとの空欄行範囲（実ファイルを直接読み合わせて検証済み）。
 // 特記事項は大半のケースがこの行数に収まるため、テンプレート自体は元のサイズの
-// ままにしておき、収まらない場合だけ書き出し時にその区分の行を追加する
+// ままにしておき（使わない行も削除・非表示にしない）、収まらない場合だけ書き出し時に
+// その区分の行を追加する
 // （下のensureSectionCapacity参照）。
 const SECTION_LAYOUT: SectionLayout[] = [
   { category: "1.移動や動作等", dataRowFrom: 5, dataRowTo: 10 },
@@ -119,19 +120,16 @@ function estimateRowHeightPt(text: string, fontSize: number, charsPerLineAtSize1
 }
 
 function writeDataRow(ws: ExcelJS.Worksheet, row: number, noteRow: NoteRow | undefined) {
+  // 使わない行はテンプレートのまま残す（非表示・高さ変更はしない）
+  if (!noteRow) return;
   const outputRow = ws.getRow(row);
-  if (!noteRow) {
-    outputRow.hidden = true;
-    outputRow.height = 0;
-    return;
-  }
-  outputRow.hidden = false;
   const idCell = ws.getCell(row, ID_COL_FROM);
   idCell.value = noteRow.label;
+  idCell.alignment = { ...(idCell.alignment || {}), vertical: "middle" };
 
   const noteCell = ws.getCell(row, NOTE_COL_FROM);
   noteCell.value = noteRow.text;
-  noteCell.alignment = { ...(noteCell.alignment || {}), wrapText: true, vertical: "top" };
+  noteCell.alignment = { ...(noteCell.alignment || {}), wrapText: true, vertical: "middle" };
 
   const estimated = estimateRowHeightPt(noteRow.text, (noteCell.font && noteCell.font.size) || 10);
   outputRow.height = Math.max(17.25, estimated);
