@@ -169,6 +169,22 @@ function reinforceTablePerimeter(ws: ExcelJS.Worksheet) {
   }
 }
 
+// タイトル行（調査日・対象者氏名の行）と表の見出しの間に入っているB〜N列の太線を消す。
+function removeTitleUnderline(ws: ExcelJS.Worksheet) {
+  const titleLastRow = 3;
+  for (let col = 2; col <= 14; col++) {
+    const above = ws.getCell(titleLastRow, col);
+    const aboveBorder = { ...(above.border || {}) };
+    delete aboveBorder.bottom;
+    above.border = aboveBorder;
+
+    const below = ws.getCell(titleLastRow + 1, col);
+    const belowBorder = { ...(below.border || {}) };
+    delete belowBorder.top;
+    below.border = belowBorder;
+  }
+}
+
 function restoreOtherSectionRows(
   ws: ExcelJS.Worksheet,
   shift: number,
@@ -399,6 +415,7 @@ export async function exportAssessmentToExcel(params: {
 
   restoreOtherSectionRows(ws, cumulativeShift, otherSectionRowHeights);
   reinforceTablePerimeter(ws);
+  removeTitleUnderline(ws);
 
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
