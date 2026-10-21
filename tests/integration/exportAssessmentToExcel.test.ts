@@ -35,12 +35,10 @@ describe("exportAssessmentToExcel（特記事項.xlsx）", () => {
       expect(ws.getRow(6).height).toBe(17.25);
       expect(ws.getCell(5, 3).alignment?.vertical).toBe("middle");
       expect(ws.getCell(5, 5).alignment?.vertical).toBe("middle");
-      expect(ws.getCell(2, 2).border.top?.style).toBe("medium");
       for (let col = 2; col <= 14; col++) {
-        // タイトル行の下線（3行目の下・4行目の上）は引かない
-        expect(ws.getCell(3, col).border.bottom).toBeUndefined();
-        expect(ws.getCell(4, col).border.top).toBeUndefined();
+        expect(ws.getCell(2, col).border.top).toBeUndefined();
       }
+      expect(ws.getCell(3, 2).border.bottom?.style).toBe("medium");
       expect(ws.getCell(45, 14).border.bottom?.style).toBe("medium");
       for (let col = 2; col <= 14; col++) {
         expect(ws.getCell(3, col).border.left).toBeUndefined();
