@@ -1650,20 +1650,14 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
   const groupedItemIds = new Set(groups.flatMap(g => g.itemIds));
   // 判定（選択された選択肢）が異なる項目が混在してしまっている既存グループ（過去の不具合や、
   // グループ化後の手動判定変更により発生しうる）を検出する。
-  const inconsistentGroups = groups.filter(
-    g => new Set(g.itemIds.map(id => selections[id])).size > 1
-  );
+  // 判定が異なる項目も、同じ区分内であればまとめられる（例：1-10と1-11）
+  const inconsistentGroups: typeof groups = [];
 
   const toggleGroupSelect = (itemId: string) => {
     setSelectedForGroup(prev => {
       if (prev.includes(itemId)) {
         setGroupSelectWarning("");
         return prev.filter(id => id !== itemId);
-      }
-      const firstOption = prev.length > 0 ? selections[prev[0]] : undefined;
-      if (firstOption !== undefined && selections[itemId] !== firstOption) {
-        setGroupSelectWarning("判定が異なる項目はまとめられません。同じ判定の項目同士のみ選択してください。");
-        return prev;
       }
       const firstCategory = prev.length > 0 ? ASSESSMENT_ITEMS.find(i => i.id === prev[0])?.category : undefined;
       const category = ASSESSMENT_ITEMS.find(i => i.id === itemId)?.category;
@@ -2152,7 +2146,7 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
           <div className="sticky top-0 z-30 bg-indigo-50 border border-indigo-300 rounded-xl p-3 flex flex-col gap-2 text-xs mb-4 shadow-md">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <span className="font-black text-indigo-800">
-                {selectedForGroup.length}件を選択中（複数選ぶとまとめて1つの特記文にできます。同じ判定の項目同士のみ選択できます）
+                {selectedForGroup.length}件を選択中（複数選ぶとまとめて1つの特記文にできます。同じ区分内の項目を選択できます）
               </span>
               <div className="flex gap-2">
                 <button
