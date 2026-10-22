@@ -2642,6 +2642,8 @@ export default function App() {
                 />
               </div>
             </div>
+            {/* 障害等級欄は非表示（入力値・AIレビューへの引き渡しは従来どおり） */}
+            <div className="hidden">
             <label className="text-[11px] font-black text-amber-900 mb-1 flex items-center gap-1">
               <MessageSquare className="w-3.5 h-3.5" />
               障害等級（概況調査票より・任意）
@@ -2653,6 +2655,7 @@ export default function App() {
               className="w-full px-2.5 py-1.5 bg-white rounded border border-amber-300 focus:border-amber-500 focus:outline-none text-xs font-bold mb-2"
               placeholder="例：身体障害者手帳2級、療育手帳B、障害支援区分3 など"
             />
+            </div>
             <button
               onClick={handleReviewWithAi}
               disabled={aiReviewLoading}
