@@ -2029,7 +2029,7 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
                 </div>
               </div>
             </div>
-            <div className="text-xs text-slate-600 mb-4">区分4以上は、出力後（説明・判定結果シートL5）ご自分でご確認ください。</div>
+            <div className="text-sm font-bold text-red-600 mb-4"><span className="text-lg">区分4以上</span>は、出力後（説明・判定結果シートL5）ご自分でご確認ください。</div>
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowEligibilityConfirm(false)} className="px-4 py-2 rounded-lg border border-slate-300 font-bold text-xs">キャンセル</button>
               <button onClick={handleExportSurveySheet} className="px-4 py-2 rounded-lg bg-sky-700 text-white font-bold text-xs">OK（Excel出力）</button>
@@ -2140,12 +2140,12 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
         <div className="bg-white p-3 rounded-xl border border-slate-300/80 shadow-sm mb-4 text-xs grid md:grid-cols-2 gap-3">
           <div className="md:col-span-2 flex flex-wrap items-center gap-3 pb-2 border-b border-slate-200">
             <div className={`px-2 py-1 rounded font-black ${judgeHomon(homonBody.met, behaviorScore.homonMentalMet) ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"}`}>
-              重度訪問介護要件（区分を除く）：{judgeHomon(homonBody.met, behaviorScore.homonMentalMet) ? "該当" : "非該当"}
+              重度訪問介護要件（区分を除く）：{homonBody.met && behaviorScore.homonMentalMet ? "該当" : homonBody.met || behaviorScore.homonMentalMet ? "どちらかが該当" : "非該当"}
             </div>
             <div className={`px-2 py-1 rounded font-black ${behaviorScore.severeBehaviorMet ? "bg-rose-600 text-white" : "bg-slate-200 text-slate-700"}`}>
               強度行動障害要件：{behaviorScore.severeBehaviorMet ? "該当" : "非該当"}
             </div>
-            <span className="text-[10px] text-slate-500">重度訪問介護＝（身体要件 または 知的・精神{HOMON_MENTAL_THRESHOLD}点以上）かつ区分4以上。<b>区分4以上は、認定調査票に出力後（説明・判定結果シートL5）ご自分でご確認ください。</b>／強度行動障害＝{SEVERE_BEHAVIOR_THRESHOLD}点以上</span>
+            <span className="text-[10px] text-slate-500">重度訪問介護＝（身体要件 または 知的・精神{HOMON_MENTAL_THRESHOLD}点以上）かつ区分4以上。<b className="text-red-600"><span className="text-sm">区分4以上</span>は、認定調査票に出力後（説明・判定結果シートL5）ご自分でご確認ください。</b>／強度行動障害＝{SEVERE_BEHAVIOR_THRESHOLD}点以上</span>
           </div>
           <div>
             <div className="font-black text-slate-800 mb-1.5">重度訪問介護（身体）要件</div>
