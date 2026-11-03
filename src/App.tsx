@@ -1533,7 +1533,6 @@ const STORAGE_KEYS = {
   surveyDate: "manual_survey_date",
   subjectName: "manual_subject_name",
   surveyorNumber: "manual_surveyor_number",
-  twoLimbParalysis: "manual_two_limb_paralysis",
 };
 
 // ローカルストレージからデータを取得する関数
@@ -1566,12 +1565,8 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("すべて");
 
-  const [twoLimbParalysis, setTwoLimbParalysis] = useState<boolean>(() =>
-    loadFromStorage(STORAGE_KEYS.twoLimbParalysis, false)
-  );
-  useEffect(() => { saveToStorage(STORAGE_KEYS.twoLimbParalysis, twoLimbParalysis); }, [twoLimbParalysis]);
   const behaviorScore = calcBehaviorScore(selections);
-  const homonBody = judgeHomonBody(selections, twoLimbParalysis);
+  const homonBody = judgeHomonBody(selections);
   const [disabilityGrade, setDisabilityGrade] = useState(() =>
     loadFromStorage(STORAGE_KEYS.disabilityGrade, "")
   );
@@ -1771,7 +1766,6 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
     setSelections({ ...INITIAL_SELECTIONS });
     setEditedNotes({});
     setDisabilityGrade("");
-    setTwoLimbParalysis(false);
     setSurveyDate("");
     setSubjectName("");
     setSurveyorNumber("");
@@ -2149,10 +2143,6 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
           </div>
           <div>
             <div className="font-black text-slate-800 mb-1.5">重度訪問介護（身体）要件</div>
-            <label className="flex items-center gap-1.5 font-bold mb-1.5">
-              <input type="checkbox" checked={twoLimbParalysis} onChange={e => setTwoLimbParalysis(e.target.checked)} />
-              二肢以上に麻痺等がある
-            </label>
             <div className="flex flex-wrap gap-1 mb-1.5">
               {homonBody.needsSupport.map(i => (
                 <span key={i.id} className={`px-1.5 py-0.5 rounded border font-bold ${i.needed ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-slate-50 border-slate-300 text-slate-500"}`}>
@@ -2163,7 +2153,10 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
             <div className={`inline-block px-2 py-1 rounded font-black ${homonBody.met ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"}`}>
               {homonBody.met ? "満たしている" : "満たしていない"}
             </div>
-                      </div>
+            <div className="mt-1 text-[10px] text-slate-500">
+              二肢以上に麻痺等があるかは、医師意見書で判断される
+            </div>
+          </div>
           <div>
             <div className="font-black text-slate-800 mb-1.5">重度訪問介護（知的・精神）／強度行動障害 行動関連項目</div>
             <div className="flex flex-wrap gap-1 mb-1.5">

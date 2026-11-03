@@ -55,17 +55,14 @@ export const calcBehaviorScore = (selections: Record<string, string>) => {
   };
 };
 
-// 身体：二肢以上の麻痺があり、移乗・歩行・排尿・排便がいずれも「支援不要」以外
-export const judgeHomonBody = (
-  selections: Record<string, string>,
-  hasTwoLimbParalysis: boolean,
-) => {
+// 身体：移乗・歩行・排尿・排便がいずれも「支援不要」以外
+export const judgeHomonBody = (selections: Record<string, string>) => {
   const needsSupport = HOMON_BODY_ITEM_IDS.map(id => ({
     id,
     needed: !!selections[id] && !selections[id].startsWith("1."),
   }));
   const allNeeded = needsSupport.every(i => i.needed);
-  return { needsSupport, allNeeded, met: hasTwoLimbParalysis && allNeeded };
+  return { needsSupport, allNeeded, met: allNeeded };
 };
 
 // 重度訪問介護：身体要件 または 知的・精神要件（区分4以上は出力後に目視で確認する）

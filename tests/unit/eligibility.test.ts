@@ -14,10 +14,9 @@ describe("calcBehaviorScore", () => {
 
 describe("judgeHomonBody", () => {
   const all = { "1-4": "2.見守り等", "1-8": "3.部分支援", "2-4": "2.見守り等", "2-5": "4.全面支援" };
-  it("requires paralysis and all four items", () => {
-    expect(judgeHomonBody(all, true).met).toBe(true);
-    expect(judgeHomonBody(all, false).met).toBe(false);
-    expect(judgeHomonBody({ ...all, "2-5": "1.支援不要" }, true).met).toBe(false);
+  it("requires all four items; paralysis is judged separately", () => {
+    expect(judgeHomonBody(all).met).toBe(true);
+    expect(judgeHomonBody({ ...all, "2-5": "1.支援不要" }).met).toBe(false);
   });
 });
 
