@@ -159,6 +159,8 @@ function reinforceTablePerimeter(ws: ExcelJS.Worksheet) {
       const [from, to] = range.split(":").map(parseAddr);
       return from.row < to.row && from.row <= row && to.row >= row;
     });
+    // 見出し行（C:N結合）は結合し直した際にN列の右罫線が失われるため、右側だけ補強する。
+    if (merges.includes(`C${row}:N${row}`)) setBorderSide(ws.getCell(`N${row}`), "right", "medium");
     if (intersectsVerticalMerge) continue;
     setBorderSide(ws.getCell(`B${row}`), "left", "medium");
     setBorderSide(ws.getCell(`N${row}`), "right", "medium");
@@ -412,6 +414,8 @@ export async function exportAssessmentToExcel(params: {
   }
 
   restoreOtherSectionRows(ws, cumulativeShift, otherSectionRowHeights);
+  // 印刷範囲は、行を追加しても「その他」（B列の結合セル）の最終行までにそろえる。
+  ws.pageSetup.printArea = `B2:N${OTHER_SECTION_START_ROW + cumulativeShift + OTHER_SECTION_ROW_COUNT - 1}`;
   reinforceTablePerimeter(ws);
   removeTopBorder(ws);
 
