@@ -2158,7 +2158,7 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
             </div>
           </div>
           <div>
-            <div className="font-black text-slate-800 mb-1.5">重度訪問介護（知的・精神）／強度行動障害 行動関連項目</div>
+            <div className="font-black text-slate-800 mb-1.5">重度訪問介護（知的・精神）{HOMON_MENTAL_THRESHOLD}点以上／強度行動障害 行動関連項目 {SEVERE_BEHAVIOR_THRESHOLD}点以上</div>
             <div className="flex flex-wrap gap-1 mb-1.5">
               {behaviorScore.details.map(d => (
                 <span key={d.id} className={`px-1.5 py-0.5 rounded border font-bold ${d.points > 0 ? "bg-amber-50 border-amber-300 text-amber-800" : "bg-slate-50 border-slate-300 text-slate-500"}`}>
