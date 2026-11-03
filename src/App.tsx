@@ -4,6 +4,7 @@ import {
   MessageSquare, Filter, Heart, Info, AlertTriangle, Download
 } from 'lucide-react';
 import { exportAssessmentToExcel, compareItemIdsNumerically } from './exportExcel';
+import { calcBehaviorScore, judgeHomonBody, judgeHomon, BEHAVIOR_MAX_SCORE, HOMON_MENTAL_THRESHOLD, SEVERE_BEHAVIOR_THRESHOLD } from './eligibility';
 import { exportSurveySheetToExcel, SURVEY_GROUPS } from './exportSurveySheet';
 
 // -------------------------------------------------------
@@ -1532,6 +1533,7 @@ const STORAGE_KEYS = {
   surveyDate: "manual_survey_date",
   subjectName: "manual_subject_name",
   surveyorNumber: "manual_surveyor_number",
+  twoLimbParalysis: "manual_two_limb_paralysis",
 };
 
 // ローカルストレージからデータを取得する関数
@@ -1564,6 +1566,12 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("すべて");
 
+  const [twoLimbParalysis, setTwoLimbParalysis] = useState<boolean>(() =>
+    loadFromStorage(STORAGE_KEYS.twoLimbParalysis, false)
+  );
+  useEffect(() => { saveToStorage(STORAGE_KEYS.twoLimbParalysis, twoLimbParalysis); }, [twoLimbParalysis]);
+  const behaviorScore = calcBehaviorScore(selections);
+  const homonBody = judgeHomonBody(selections, twoLimbParalysis);
   const [disabilityGrade, setDisabilityGrade] = useState(() =>
     loadFromStorage(STORAGE_KEYS.disabilityGrade, "")
   );
@@ -1742,7 +1750,10 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
 
   const [exportingSurvey, setExportingSurvey] = useState(false);
 
+  const [showEligibilityConfirm, setShowEligibilityConfirm] = useState(false);
+
   const handleExportSurveySheet = async () => {
+    setShowEligibilityConfirm(false);
     setExportingSurvey(true);
     try {
       await exportSurveySheetToExcel({
@@ -1760,6 +1771,7 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
     setSelections({ ...INITIAL_SELECTIONS });
     setEditedNotes({});
     setDisabilityGrade("");
+    setTwoLimbParalysis(false);
     setSurveyDate("");
     setSubjectName("");
     setSurveyorNumber("");
@@ -1996,6 +2008,35 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 font-sans antialiased">
 
+      {showEligibilityConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 text-sm">
+            <div className="font-black text-slate-800 mb-3">要件判定の確認</div>
+            <div className="space-y-1.5 mb-3">
+              <div className={`px-2 py-1.5 rounded font-black ${judgeHomon(homonBody.met, behaviorScore.homonMentalMet) ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"}`}>
+                重度訪問介護要件（区分を除く）：{homonBody.met && behaviorScore.homonMentalMet ? "該当" : homonBody.met || behaviorScore.homonMentalMet ? "どちらかが該当" : "非該当"}
+                <div className="text-base font-black mt-1">
+                  ・身体：{homonBody.met ? "該当" : "非該当"}
+                </div>
+                <div className="text-base font-black">
+                  ・知的・精神（{HOMON_MENTAL_THRESHOLD}点以上）：{behaviorScore.homonMentalMet ? "該当" : "非該当"}（{behaviorScore.total}点）
+                </div>
+              </div>
+              <div className={`px-2 py-1.5 rounded font-black ${behaviorScore.severeBehaviorMet ? "bg-rose-600 text-white" : "bg-slate-200 text-slate-700"}`}>
+                強度行動障害要件：{behaviorScore.severeBehaviorMet ? "該当" : "非該当"}
+                <div className="text-base font-black mt-1">
+                  ・{SEVERE_BEHAVIOR_THRESHOLD}点以上：{behaviorScore.severeBehaviorMet ? "該当" : "非該当"}（{behaviorScore.total}点）
+                </div>
+              </div>
+            </div>
+            <div className="text-xs text-slate-600 mb-4">区分4以上は、出力後（説明・判定結果シートL5）ご自分でご確認ください。</div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowEligibilityConfirm(false)} className="px-4 py-2 rounded-lg border border-slate-300 font-bold text-xs">キャンセル</button>
+              <button onClick={handleExportSurveySheet} className="px-4 py-2 rounded-lg bg-sky-700 text-white font-bold text-xs">OK（Excel出力）</button>
+            </div>
+          </div>
+        </div>
+      )}
       <header className="bg-slate-900 text-white shadow-md border-b-2 border-slate-700">
         <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -2091,6 +2132,49 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
               className="w-full px-2.5 py-1.5 bg-white rounded border border-amber-300 focus:border-amber-500 focus:outline-none text-xs font-bold mb-2"
               placeholder="例：身体障害者手帳2級、療育手帳B、障害支援区分3 など"
             />
+            </div>
+          </div>
+        </div>
+
+        {/* 重度訪問介護・強度行動障害 要件判定 */}
+        <div className="bg-white p-3 rounded-xl border border-slate-300/80 shadow-sm mb-4 text-xs grid md:grid-cols-2 gap-3">
+          <div className="md:col-span-2 flex flex-wrap items-center gap-3 pb-2 border-b border-slate-200">
+            <div className={`px-2 py-1 rounded font-black ${judgeHomon(homonBody.met, behaviorScore.homonMentalMet) ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"}`}>
+              重度訪問介護要件（区分を除く）：{judgeHomon(homonBody.met, behaviorScore.homonMentalMet) ? "該当" : "非該当"}
+            </div>
+            <div className={`px-2 py-1 rounded font-black ${behaviorScore.severeBehaviorMet ? "bg-rose-600 text-white" : "bg-slate-200 text-slate-700"}`}>
+              強度行動障害要件：{behaviorScore.severeBehaviorMet ? "該当" : "非該当"}
+            </div>
+            <span className="text-[10px] text-slate-500">重度訪問介護＝（身体要件 または 知的・精神{HOMON_MENTAL_THRESHOLD}点以上）かつ区分4以上。<b>区分4以上は、認定調査票に出力後（説明・判定結果シートL5）ご自分でご確認ください。</b>／強度行動障害＝{SEVERE_BEHAVIOR_THRESHOLD}点以上</span>
+          </div>
+          <div>
+            <div className="font-black text-slate-800 mb-1.5">重度訪問介護（身体）要件</div>
+            <label className="flex items-center gap-1.5 font-bold mb-1.5">
+              <input type="checkbox" checked={twoLimbParalysis} onChange={e => setTwoLimbParalysis(e.target.checked)} />
+              二肢以上に麻痺等がある
+            </label>
+            <div className="flex flex-wrap gap-1 mb-1.5">
+              {homonBody.needsSupport.map(i => (
+                <span key={i.id} className={`px-1.5 py-0.5 rounded border font-bold ${i.needed ? "bg-emerald-50 border-emerald-300 text-emerald-800" : "bg-slate-50 border-slate-300 text-slate-500"}`}>
+                  {i.id} {i.needed ? "支援要" : "支援不要"}
+                </span>
+              ))}
+            </div>
+            <div className={`inline-block px-2 py-1 rounded font-black ${homonBody.met ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"}`}>
+              {homonBody.met ? "満たしている" : "満たしていない"}
+            </div>
+                      </div>
+          <div>
+            <div className="font-black text-slate-800 mb-1.5">重度訪問介護（知的・精神）／強度行動障害 行動関連項目</div>
+            <div className="flex flex-wrap gap-1 mb-1.5">
+              {behaviorScore.details.map(d => (
+                <span key={d.id} className={`px-1.5 py-0.5 rounded border font-bold ${d.points > 0 ? "bg-amber-50 border-amber-300 text-amber-800" : "bg-slate-50 border-slate-300 text-slate-500"}`}>
+                  {d.id} {d.points}点
+                </span>
+              ))}
+            </div>
+            <div className="inline-block px-2 py-1 rounded font-black bg-rose-600 text-white">
+              合計 {behaviorScore.total} 点 / {BEHAVIOR_MAX_SCORE}点
             </div>
           </div>
         </div>
@@ -2414,7 +2498,7 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
         <div className="sticky bottom-0 z-20 bg-slate-100 border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] mt-5 pt-4 pb-4">
           <div className="flex flex-col sm:flex-row gap-2">
             <button
-              onClick={handleExportSurveySheet}
+              onClick={() => setShowEligibilityConfirm(true)}
               disabled={exportingSurvey}
               className="flex-1 bg-sky-700 hover:bg-sky-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black py-3 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 text-xs transition-all"
             >
