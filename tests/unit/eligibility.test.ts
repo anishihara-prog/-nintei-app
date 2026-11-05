@@ -27,10 +27,22 @@ describe("thresholds", () => {
     let r = calcBehaviorScore(sel);
     expect(r.total).toBe(10);
     expect(r.homonMentalMet).toBe(true);
+    expect(r.actionSupportScoreMet).toBe(true);
     expect(r.severeBehaviorMet).toBe(false);
     for (const id of ["4-20", "4-21"]) sel[id] = "5.ほぼ毎日支援";
     r = calcBehaviorScore(sel);
     expect(r.severeBehaviorMet).toBe(true);
+  });
+  it("requires 10 points for the action support score criterion", () => {
+    const r = calcBehaviorScore({
+      "3-3": "できない",
+      "3-4": "判断不能",
+      "4-7": "5.ほぼ毎日支援",
+      "4-16": "4.週に1回以上支援",
+      "4-19": "3.月に1回以上支援",
+    });
+    expect(r.total).toBe(7);
+    expect(r.actionSupportScoreMet).toBe(false);
   });
   it("homon is body or mental", () => {
     expect(judgeHomon(true, false)).toBe(true);

@@ -37,6 +37,7 @@ export const behaviorItemPoints = (itemId: string, option: string | undefined): 
 };
 
 export const HOMON_MENTAL_THRESHOLD = 10;
+export const ACTION_SUPPORT_THRESHOLD = 10;
 export const SEVERE_BEHAVIOR_THRESHOLD = 14;
 
 export const BEHAVIOR_MAX_SCORE = BEHAVIOR_ITEM_IDS.length * 2;
@@ -51,6 +52,7 @@ export const calcBehaviorScore = (selections: Record<string, string>) => {
     details,
     total,
     homonMentalMet: total >= HOMON_MENTAL_THRESHOLD,
+    actionSupportScoreMet: total >= ACTION_SUPPORT_THRESHOLD,
     severeBehaviorMet: total >= SEVERE_BEHAVIOR_THRESHOLD,
   };
 };

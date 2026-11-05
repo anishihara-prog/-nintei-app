@@ -4,7 +4,7 @@ import {
   MessageSquare, Filter, Heart, Info, AlertTriangle, Download
 } from 'lucide-react';
 import { exportAssessmentToExcel, compareItemIdsNumerically } from './exportExcel';
-import { calcBehaviorScore, judgeHomonBody, judgeHomon, BEHAVIOR_MAX_SCORE, HOMON_MENTAL_THRESHOLD, SEVERE_BEHAVIOR_THRESHOLD } from './eligibility';
+import { calcBehaviorScore, judgeHomonBody, judgeHomon, BEHAVIOR_MAX_SCORE, HOMON_MENTAL_THRESHOLD, ACTION_SUPPORT_THRESHOLD, SEVERE_BEHAVIOR_THRESHOLD } from './eligibility';
 import { exportSurveySheetToExcel, SURVEY_GROUPS } from './exportSurveySheet';
 
 // -------------------------------------------------------
@@ -1567,6 +1567,10 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
 
   const behaviorScore = calcBehaviorScore(selections);
   const homonBody = judgeHomonBody(selections);
+  const homonRequirementStatus = [
+    homonBody.met && "身体該当",
+    behaviorScore.homonMentalMet && "知的・精神該当",
+  ].filter(Boolean).join("・") || "非該当";
   const [disabilityGrade, setDisabilityGrade] = useState(() =>
     loadFromStorage(STORAGE_KEYS.disabilityGrade, "")
   );
@@ -2007,8 +2011,8 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 text-sm">
             <div className="font-black text-slate-800 mb-3">要件判定の確認</div>
             <div className="space-y-1.5 mb-3">
-              <div className={`px-2 py-1.5 rounded font-black ${judgeHomon(homonBody.met, behaviorScore.homonMentalMet) ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"}`}>
-                重度訪問介護要件（区分を除く）：{homonBody.met && behaviorScore.homonMentalMet ? "該当" : homonBody.met || behaviorScore.homonMentalMet ? "どちらかが該当" : "非該当"}
+              <div className={`px-2 py-1.5 rounded font-black ${judgeHomon(homonBody.met, behaviorScore.homonMentalMet) ? "bg-amber-500 text-white" : "bg-slate-200 text-slate-700"}`}>
+                重度訪問介護要件（区分を除く）：{homonRequirementStatus}
                 <div className="text-base font-black mt-1">
                   ・身体：{homonBody.met ? "該当" : "非該当"}
                 </div>
@@ -2016,14 +2020,20 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
                   ・知的・精神（{HOMON_MENTAL_THRESHOLD}点以上）：{behaviorScore.homonMentalMet ? "該当" : "非該当"}（{behaviorScore.total}点）
                 </div>
               </div>
-              <div className={`px-2 py-1.5 rounded font-black ${behaviorScore.severeBehaviorMet ? "bg-rose-600 text-white" : "bg-slate-200 text-slate-700"}`}>
-                強度行動障害要件：{behaviorScore.severeBehaviorMet ? "該当" : "非該当"}
+              <div className={`px-2 py-1.5 rounded font-black ${behaviorScore.actionSupportScoreMet ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"}`}>
+                行動援護の点数要件：{behaviorScore.actionSupportScoreMet ? "該当" : "非該当"}
+                <div className="text-base font-black mt-1">
+                  ・{ACTION_SUPPORT_THRESHOLD}点以上：{behaviorScore.actionSupportScoreMet ? "該当" : "非該当"}（{behaviorScore.total}点）
+                </div>
+              </div>
+              <div className={`px-2 py-1.5 rounded font-black ${behaviorScore.severeBehaviorMet ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"}`}>
+                強度行動障害者受入補助金要件：{behaviorScore.severeBehaviorMet ? "該当" : "非該当"}
                 <div className="text-base font-black mt-1">
                   ・{SEVERE_BEHAVIOR_THRESHOLD}点以上：{behaviorScore.severeBehaviorMet ? "該当" : "非該当"}（{behaviorScore.total}点）
                 </div>
               </div>
             </div>
-            <div className="text-sm font-bold text-red-600 mb-4"><span className="text-lg">区分4以上</span>は、出力後（説明・判定結果シートL5）ご自分でご確認ください。</div>
+            <div className="text-sm font-bold text-red-600 mb-4">重度訪問介護は区分4以上、行動援護は区分3以上が必要です。区分は出力後（説明・判定結果シートL5）ご自分でご確認ください。</div>
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowEligibilityConfirm(false)} className="px-4 py-2 rounded-lg border border-slate-300 font-bold text-xs">キャンセル</button>
               <button onClick={handleExportSurveySheet} className="px-4 py-2 rounded-lg bg-sky-700 text-white font-bold text-xs">OK（Excel出力）</button>
@@ -2130,16 +2140,19 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
           </div>
         </div>
 
-        {/* 重度訪問介護・強度行動障害 要件判定 */}
+        {/* 重度訪問介護・強度行動障害者受入補助金 要件判定 */}
         <div className="bg-white p-3 rounded-xl border border-slate-300/80 shadow-sm mb-4 text-xs grid md:grid-cols-2 gap-3">
           <div className="md:col-span-2 flex flex-wrap items-center gap-3 pb-2 border-b border-slate-200">
-            <div className={`px-2 py-1 rounded font-black ${judgeHomon(homonBody.met, behaviorScore.homonMentalMet) ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"}`}>
-              重度訪問介護要件（区分を除く）：{homonBody.met && behaviorScore.homonMentalMet ? "該当" : homonBody.met || behaviorScore.homonMentalMet ? "どちらかが該当" : "非該当"}
+            <div className={`px-2 py-1 rounded font-black ${judgeHomon(homonBody.met, behaviorScore.homonMentalMet) ? "bg-amber-500 text-white" : "bg-slate-200 text-slate-700"}`}>
+              重度訪問介護要件（区分を除く）：{homonRequirementStatus}
             </div>
-            <div className={`px-2 py-1 rounded font-black ${behaviorScore.severeBehaviorMet ? "bg-rose-600 text-white" : "bg-slate-200 text-slate-700"}`}>
-              強度行動障害要件：{behaviorScore.severeBehaviorMet ? "該当" : "非該当"}
+            <div className={`px-2 py-1 rounded font-black ${behaviorScore.actionSupportScoreMet ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"}`}>
+              行動援護の点数要件（{ACTION_SUPPORT_THRESHOLD}点以上）：{behaviorScore.actionSupportScoreMet ? "該当" : "非該当"}
             </div>
-            <span className="text-[10px] text-slate-500">重度訪問介護＝（身体要件 または 知的・精神{HOMON_MENTAL_THRESHOLD}点以上）かつ区分4以上。<b className="text-red-600"><span className="text-sm">区分4以上</span>は、認定調査票に出力後（説明・判定結果シートL5）ご自分でご確認ください。</b>／強度行動障害＝{SEVERE_BEHAVIOR_THRESHOLD}点以上</span>
+            <div className={`px-2 py-1 rounded font-black ${behaviorScore.severeBehaviorMet ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"}`}>
+              強度行動障害者受入補助金要件：{behaviorScore.severeBehaviorMet ? "該当" : "非該当"}
+            </div>
+            <span className="text-[10px] text-slate-500">重度訪問介護＝（身体要件 または 知的・精神{HOMON_MENTAL_THRESHOLD}点以上）かつ区分4以上。行動援護＝区分3以上かつ{ACTION_SUPPORT_THRESHOLD}点以上（区分3以上は、認定調査票に出力後、説明・判定結果シートL5でご確認ください）。／強度行動障害者受入補助金＝{SEVERE_BEHAVIOR_THRESHOLD}点以上</span>
           </div>
           <div>
             <div className="font-black text-slate-800 mb-1.5">重度訪問介護（身体）要件</div>
@@ -2158,7 +2171,7 @@ export default function App({ order = "sheet" }: { order?: "sheet" | "numeric" }
             </div>
           </div>
           <div>
-            <div className="font-black text-slate-800 mb-1.5">重度訪問介護（知的・精神）{HOMON_MENTAL_THRESHOLD}点以上／強度行動障害 行動関連項目 {SEVERE_BEHAVIOR_THRESHOLD}点以上</div>
+            <div className="font-black text-slate-800 mb-1.5">重度訪問介護（知的・精神）{HOMON_MENTAL_THRESHOLD}点以上／行動援護 {ACTION_SUPPORT_THRESHOLD}点以上／強度行動障害者受入補助金 行動関連項目 {SEVERE_BEHAVIOR_THRESHOLD}点以上</div>
             <div className="flex flex-wrap gap-1 mb-1.5">
               {behaviorScore.details.map(d => (
                 <span key={d.id} className={`px-1.5 py-0.5 rounded border font-bold ${d.points > 0 ? "bg-amber-50 border-amber-300 text-amber-800" : "bg-slate-50 border-slate-300 text-slate-500"}`}>
